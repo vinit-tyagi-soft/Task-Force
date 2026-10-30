@@ -68,6 +68,11 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/v1/organizations/{orgId}", a(s.getOrganization))
 	mux.Handle("GET /api/v1/organizations/{orgId}/members", a(s.orgMembers))
 	mux.Handle("GET /api/v1/organizations/{orgId}/departments", a(s.orgDepartments))
+	mux.Handle("GET /api/v1/organizations/{orgId}/teams", a(s.listTeams))
+	mux.Handle("POST /api/v1/organizations/{orgId}/teams", a(s.createTeam))
+	mux.Handle("PUT /api/v1/teams/{teamId}", a(s.updateTeam))
+	mux.Handle("DELETE /api/v1/teams/{teamId}", a(s.deleteTeam))
+	mux.Handle("GET /api/v1/organizations/{orgId}/workload", a(s.workload))
 	mux.Handle("GET /api/v1/organizations/{orgId}/executive-summary", a(s.executiveSummary))
 	mux.Handle("GET /api/v1/organizations/{orgId}/audit-events", a(s.auditEvents))
 

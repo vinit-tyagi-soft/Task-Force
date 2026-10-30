@@ -257,7 +257,31 @@ func load(ctx context.Context, tx pgx.Tx) error {
 			}
 		}
 	}
+
+	for _, t := range teams {
+		var id uuid.UUID
+		if err := tx.QueryRow(ctx, `INSERT INTO teams (tenant_id, name, department_id, lead_user_id, color) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+			orgIDs[t.org], t.name, depts[t.org+"/"+t.dept], userIDs[t.lead], t.color).Scan(&id); err != nil {
+			return fmt.Errorf("team %s: %w", t.name, err)
+		}
+		for _, m := range t.members {
+			if _, err := tx.Exec(ctx, `INSERT INTO team_members (team_id, tenant_id, user_id) VALUES ($1, $2, $3)`, id, orgIDs[t.org], userIDs[m]); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
+}
+
+var teams = []struct {
+	org, name, dept, lead, color string
+	members                      []string
+}{
+	{"org1", "Product & Engineering", "Engineering", "u2", "#7964da", []string{"u1", "u2", "u4", "u7"}},
+	{"org1", "Security Operations", "Security", "u5", "#5c98a4", []string{"u1", "u5", "u4"}},
+	{"org1", "Design & Experience", "Design", "u3", "#d09969", []string{"u3", "u7"}},
+	{"org1", "Growth & Marketing", "Marketing", "u6", "#a487bd", []string{"u1", "u6"}},
+	{"org2", "Partner experience", "Product", "u1", "#4e95aa", []string{"u1", "u3", "u6", "u7"}},
 }
 
 func indexOf(key string) int {
