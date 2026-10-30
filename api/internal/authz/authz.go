@@ -23,26 +23,27 @@ const (
 type Permission string
 
 const (
-	OrgMembersInvite Permission = "org.members.invite"
-	OrgPolicyManage  Permission = "org.policy.manage"
-	ProjectCreate    Permission = "project.create"
-	ProjectReadAll   Permission = "project.read_all"
-	ProjectManageAll Permission = "project.manage_all"
-	ReportRead       Permission = "report.read"
-	ReportExport     Permission = "report.export"
-	AuditRead        Permission = "audit.read"
-	HiringManage     Permission = "hiring.manage"
-	AIQuery          Permission = "ai.query"
-	AIManagePolicy   Permission = "ai.manage_policy"
-	TeamManage       Permission = "team.manage"
-	WorkloadRead     Permission = "workload.read"
-	AutomationManage Permission = "automation.manage"
+	OrgMembersInvite  Permission = "org.members.invite"
+	OrgPolicyManage   Permission = "org.policy.manage"
+	ProjectCreate     Permission = "project.create"
+	ProjectReadAll    Permission = "project.read_all"
+	ProjectManageAll  Permission = "project.manage_all"
+	ReportRead        Permission = "report.read"
+	ReportExport      Permission = "report.export"
+	AuditRead         Permission = "audit.read"
+	HiringManage      Permission = "hiring.manage"
+	AIQuery           Permission = "ai.query"
+	AIManagePolicy    Permission = "ai.manage_policy"
+	TeamManage        Permission = "team.manage"
+	WorkloadRead      Permission = "workload.read"
+	AutomationManage  Permission = "automation.manage"
+	IntegrationManage Permission = "integration.manage"
 )
 
 // Org-scope permissions per system role (section 5.2 of the blueprint).
 var rolePermissions = map[Role][]Permission{
-	TenantOwner:    {OrgMembersInvite, OrgPolicyManage, ProjectCreate, ProjectReadAll, ProjectManageAll, ReportRead, ReportExport, AuditRead, AIQuery, AIManagePolicy, TeamManage, WorkloadRead, AutomationManage},
-	OrgAdmin:       {OrgMembersInvite, OrgPolicyManage, ProjectCreate, ProjectReadAll, ProjectManageAll, ReportRead, ReportExport, AuditRead, AIManagePolicy, TeamManage, WorkloadRead, AutomationManage},
+	TenantOwner:    {OrgMembersInvite, OrgPolicyManage, ProjectCreate, ProjectReadAll, ProjectManageAll, ReportRead, ReportExport, AuditRead, AIQuery, AIManagePolicy, TeamManage, WorkloadRead, AutomationManage, IntegrationManage},
+	OrgAdmin:       {OrgMembersInvite, OrgPolicyManage, ProjectCreate, ProjectReadAll, ProjectManageAll, ReportRead, ReportExport, AuditRead, AIManagePolicy, TeamManage, WorkloadRead, AutomationManage, IntegrationManage},
 	Executive:      {ProjectReadAll, ReportRead, ReportExport, AIQuery, WorkloadRead},
 	DepartmentHead: {ProjectCreate, TeamManage, WorkloadRead},
 	ProjectManager: {ProjectCreate, WorkloadRead},
@@ -72,7 +73,13 @@ func (a Access) String() string {
 type Actor struct {
 	UserID uuid.UUID
 	Roles  map[uuid.UUID][]Role // tenant -> org-scope roles (active memberships only)
+	// TokenScoped marks API-token requests: Roles hold only the token's org and
+	// personal workspaces are never reachable.
+	TokenScoped bool
 }
+
+// CanReadPersonal reports whether the actor may reach their own private workspace.
+func (a *Actor) CanReadPersonal() bool { return !a.TokenScoped }
 
 func (a *Actor) IsMember(tenant uuid.UUID) bool {
 	_, ok := a.Roles[tenant]
@@ -92,15 +99,15 @@ func (a *Actor) Can(tenant uuid.UUID, p Permission) bool {
 
 // ProjectRef is the minimum needed to decide project access.
 type ProjectRef struct {
-	TenantID       *uuid.UUID // nil for personal workspaces
-	PersonalOwner  *uuid.UUID // owner of the personal workspace
-	OwnerID        uuid.UUID
-	MemberAccess   string // caller's project_memberships.access_level, "" if none
+	TenantID      *uuid.UUID // nil for personal workspaces
+	PersonalOwner *uuid.UUID // owner of the personal workspace
+	OwnerID       uuid.UUID
+	MemberAccess  string // caller's project_memberships.access_level, "" if none
 }
 
 func (a *Actor) ProjectAccess(p ProjectRef) Access {
 	if p.TenantID == nil {
-		if p.PersonalOwner != nil && *p.PersonalOwner == a.UserID {
+		if p.PersonalOwner != nil && *p.PersonalOwner == a.UserID && a.CanReadPersonal() {
 			return AccessManage
 		}
 		return AccessNone

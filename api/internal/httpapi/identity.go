@@ -28,6 +28,15 @@ func (s *Server) authenticated(h http.HandlerFunc) http.Handler {
 		fromCookie := false
 		if bearer, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
 			token = strings.TrimSpace(bearer)
+			if strings.HasPrefix(token, apiTokenPrefix) {
+				actor, err := s.tokenActor(r, token)
+				if err != nil {
+					s.fail(w, r, err)
+					return
+				}
+				h(w, r.WithContext(context.WithValue(r.Context(), actorKey, actor)))
+				return
+			}
 		} else if c, err := r.Cookie(auth.CookieName); err == nil {
 			token, fromCookie = c.Value, true
 		}
@@ -169,7 +178,7 @@ type orgJSON struct {
 	Permissions       []authz.Permission `json:"permissions"`
 }
 
-var uiPermissions = []authz.Permission{authz.ProjectCreate, authz.ProjectReadAll, authz.ReportRead, authz.ReportExport, authz.AuditRead, authz.OrgMembersInvite, authz.AIQuery, authz.TeamManage, authz.WorkloadRead, authz.AutomationManage}
+var uiPermissions = []authz.Permission{authz.ProjectCreate, authz.ProjectReadAll, authz.ReportRead, authz.ReportExport, authz.AuditRead, authz.OrgMembersInvite, authz.AIQuery, authz.TeamManage, authz.WorkloadRead, authz.AutomationManage, authz.IntegrationManage}
 
 func (s *Server) getMe(w http.ResponseWriter, r *http.Request) {
 	actor := actorFrom(r.Context())

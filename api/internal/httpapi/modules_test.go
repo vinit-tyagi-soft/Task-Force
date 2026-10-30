@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/vinit-tyagi-soft/taskforce/api/internal/httpapi"
 	"github.com/vinit-tyagi-soft/taskforce/api/internal/store"
 )
 
@@ -154,6 +156,80 @@ func TestAutomations(t *testing.T) {
 	expect(t, e.do(sara, "POST", base+"/notifications/read", map[string]any{"all": true}), 204, "mark all read")
 	if e.do(sara, "GET", base+"/notifications", nil).body["unread"].(float64) != 0 {
 		t.Fatal("alerts still unread after mark all")
+	}
+}
+
+// API tokens are hashed, org-scoped, route-limited and revocable; webhooks are
+// SSRF-validated, enqueued with the change, signed, and never carry private work.
+func TestIntegrations(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	vinit, arjun := e.user("vinit@example.com"), e.user("arjun.mehta@example.com")
+	acme, vertex := e.org("acme"), e.org("vertex")
+	base := "/api/v1/organizations/" + acme.String()
+	task := e.task("Review enterprise authentication flow").String()
+	private := e.task("Read a chapter on leadership").String()
+
+	expect(t, e.do(arjun, "POST", base+"/api-tokens", map[string]any{"name": "ci", "scope": "read", "expires_in_days": 30}), 403, "non-admin creating token")
+	created := e.do(vinit, "POST", base+"/api-tokens", map[string]any{"name": "BI export", "scope": "read", "expires_in_days": 30})
+	expect(t, created, 201, "create read token")
+	readTok := created.body["token"].(string)
+	var stored int
+	_ = e.owner.QueryRow(ctx, `SELECT count(*) FROM api_tokens WHERE token_hash = $1 OR prefix = $1`, readTok).Scan(&stored)
+	if stored != 0 {
+		t.Fatal("token stored in plaintext")
+	}
+	bearer := func(tok string) []string { return []string{"Authorization", "Bearer " + tok} }
+	expect(t, e.do(vinit, "GET", base+"/reports/tasks", nil, bearer(readTok)...), 200, "token reading reports")
+	expect(t, e.do(vinit, "GET", "/api/v1/tasks/"+task, nil, bearer(readTok)...), 200, "token reading org task")
+	expect(t, e.do(vinit, "GET", "/api/v1/tasks/"+private, nil, bearer(readTok)...), 404, "token reading private task")
+	expect(t, e.do(vinit, "GET", "/api/v1/organizations/"+vertex.String(), nil, bearer(readTok)...), 404, "token reaching another org")
+	expect(t, e.do(vinit, "GET", "/api/v1/me", nil, bearer(readTok)...), 403, "token on /me")
+	expect(t, e.do(vinit, "GET", base+"/threads", nil, bearer(readTok)...), 403, "token reading conversations")
+	expect(t, e.do(vinit, "PATCH", "/api/v1/tasks/"+task, map[string]any{"priority": "LOW"}, append(bearer(readTok), "If-Match", `"1"`)...), 403, "read token writing")
+
+	writeTok := e.do(vinit, "POST", base+"/api-tokens", map[string]any{"name": "Sync", "scope": "write", "expires_in_days": 7}).body["token"].(string)
+	expect(t, e.do(vinit, "PATCH", "/api/v1/tasks/"+task, map[string]any{"priority": "LOW"}, append(bearer(writeTok), "If-Match", `"1"`)...), 200, "write token updating task")
+	expect(t, e.do(vinit, "POST", "/api/v1/api-tokens/"+created.body["id"].(string)+"/revoke", nil), 204, "revoke token")
+	expect(t, e.do(vinit, "GET", base+"/reports/tasks", nil, bearer(readTok)...), 401, "revoked token")
+
+	hook := map[string]any{"name": "Ops", "url": "https://127.0.0.1/hook", "events": []string{"task.status_changed"}}
+	expect(t, e.do(vinit, "POST", base+"/webhooks", hook), 422, "loopback webhook")
+	hook["url"] = "http://hooks.example.com/tf"
+	expect(t, e.do(vinit, "POST", base+"/webhooks", hook), 422, "plain http webhook")
+	hook["url"] = "https://hooks.example.com/tf"
+	wh := e.do(vinit, "POST", base+"/webhooks", hook)
+	expect(t, wh, 201, "create webhook")
+	whSecret := wh.body["secret"].(string)
+	if list := e.do(vinit, "GET", base+"/webhooks", nil); strings.Contains(fmtBody(list), whSecret) {
+		t.Fatal("webhook secret returned after creation")
+	}
+
+	expect(t, e.do(vinit, "PATCH", "/api/v1/tasks/"+task, map[string]any{"status": "IN_REVIEW"}, "If-Match", `"2"`), 200, "status change")
+	expect(t, e.do(vinit, "PATCH", "/api/v1/tasks/"+private, map[string]any{"status": "IN_PROGRESS"}, "If-Match", `"1"`), 200, "private status change")
+	n, err := e.api.DeliverWebhooks(ctx)
+	if err != nil || n != 1 || len(e.hooks.requests) != 1 {
+		t.Fatalf("deliveries attempted %d (err %v), received %d; want exactly the org event", n, err, len(e.hooks.requests))
+	}
+	req, body := e.hooks.requests[0], e.hooks.bodies[0]
+	ts, _ := strconv.ParseInt(req.Header.Get("X-TaskForce-Timestamp"), 10, 64)
+	if req.Header.Get("X-TaskForce-Event") != "task.status_changed" || req.Header.Get("X-TaskForce-Signature") != httpapi.Sign(whSecret, ts, body) {
+		t.Fatalf("bad delivery headers: %v", req.Header)
+	}
+	if strings.Contains(string(body), "leadership") {
+		t.Fatal("private work leaked into a webhook")
+	}
+
+	e.hooks.status = 500
+	expect(t, e.do(vinit, "POST", "/api/v1/webhooks/"+wh.body["id"].(string)+"/test", nil), 202, "test webhook")
+	if _, err := e.api.DeliverWebhooks(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var status string
+	var attempts int
+	_ = e.owner.QueryRow(ctx, `SELECT status, attempts FROM webhook_deliveries WHERE event = 'ping'`).Scan(&status, &attempts)
+	if status != "PENDING" || attempts != 1 {
+		t.Fatalf("failed delivery should be retried later: status %s attempts %d", status, attempts)
 	}
 }
 

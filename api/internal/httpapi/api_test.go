@@ -31,6 +31,22 @@ type env struct {
 	srv   *httptest.Server
 	owner *pgxpool.Pool
 	app   *pgxpool.Pool
+	api   *httpapi.Server
+	hooks *hookTransport
+}
+
+// hookTransport stands in for webhook receivers so tests never reach the network.
+type hookTransport struct {
+	status   int
+	requests []*http.Request
+	bodies   [][]byte
+}
+
+func (h *hookTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	body, _ := io.ReadAll(r.Body)
+	h.requests = append(h.requests, r)
+	h.bodies = append(h.bodies, body)
+	return &http.Response{StatusCode: h.status, Body: io.NopCloser(strings.NewReader("")), Header: http.Header{}, Request: r}, nil
 }
 
 func envOr(key, def string) string {
@@ -59,11 +75,12 @@ func setup(t *testing.T) *env {
 	if err != nil {
 		t.Fatalf("app role connection: %v", err)
 	}
-	api := httpapi.New(&store.Store{Pool: app}, httpapi.Config{SessionSecret: secret, DevAuth: true},
+	hooks := &hookTransport{status: 200}
+	api := httpapi.New(&store.Store{Pool: app}, httpapi.Config{SessionSecret: secret, DevAuth: true, WebhookTransport: hooks},
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	srv := httptest.NewServer(api.Routes())
 	t.Cleanup(func() { srv.Close(); app.Close(); owner.Close() })
-	return &env{t: t, srv: srv, owner: owner, app: app}
+	return &env{t: t, srv: srv, owner: owner, app: app, api: api, hooks: hooks}
 }
 
 func (e *env) id(query string, args ...any) uuid.UUID {

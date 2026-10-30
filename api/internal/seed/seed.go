@@ -43,7 +43,7 @@ var orgs = []org{
 
 type project struct {
 	key, org, name, desc, dept, owner, due, color, icon string
-	members                                            []string
+	members                                             []string
 }
 
 var projects = []project{

@@ -137,7 +137,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       items: [
         { label: "Communication Hub", icon: "mail", href: "/messages" },
         { label: "Automations & Alerts", icon: "zap", href: "/automations" },
-        { label: "API & Integrations", icon: "grid" },
+        { label: "API & Integrations", icon: "grid", href: "/integrations", permission: "integration.manage" },
       ],
     },
     { group: "MANAGE", items: [{ label: "Settings & Administration", icon: "settings", href: "/settings" }] },

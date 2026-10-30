@@ -64,6 +64,8 @@ func run(log *slog.Logger) error {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
+	go api.RunWebhookWorker(ctx, 5*time.Second)
+
 	errc := make(chan error, 1)
 	go func() {
 		log.Info("api listening", "addr", addr)

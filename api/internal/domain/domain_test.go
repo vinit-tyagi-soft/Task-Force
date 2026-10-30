@@ -15,12 +15,12 @@ func date(s string) *time.Time {
 func TestComputeAttentionUnionAndEligibility(t *testing.T) {
 	today := *date("2026-10-30")
 	m := Compute([]TaskFacts{
-		{Status: StatusBlocked, DueOn: date("2026-10-29")},     // blocked + overdue
-		{Status: StatusInProgress, DueOn: date("2026-10-28")},  // overdue
-		{Status: StatusBlocked, DueOn: date("2026-11-02")},     // blocked
-		{Status: StatusDone, DueOn: date("2026-10-01")},        // done, never overdue
-		{Status: StatusCancelled, DueOn: date("2026-10-01")},   // excluded
-		{Status: StatusTodo, DueOn: date("2026-10-30")},        // due today, not overdue
+		{Status: StatusBlocked, DueOn: date("2026-10-29")},    // blocked + overdue
+		{Status: StatusInProgress, DueOn: date("2026-10-28")}, // overdue
+		{Status: StatusBlocked, DueOn: date("2026-11-02")},    // blocked
+		{Status: StatusDone, DueOn: date("2026-10-01")},       // done, never overdue
+		{Status: StatusCancelled, DueOn: date("2026-10-01")},  // excluded
+		{Status: StatusTodo, DueOn: date("2026-10-30")},       // due today, not overdue
 	}, today)
 	want := Metrics{Eligible: 5, Done: 1, Open: 4, Blocked: 2, Overdue: 2, Attention: 3, RatePercent: 20}
 	if m != want {

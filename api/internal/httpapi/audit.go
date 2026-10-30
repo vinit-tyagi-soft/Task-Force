@@ -14,14 +14,14 @@ import (
 )
 
 type auditEntry struct {
-	Tenant      *uuid.UUID
-	Workspace   *uuid.UUID
-	Actor       uuid.UUID
-	Action      string
-	TargetType  string
-	TargetID    *uuid.UUID
-	Summary     string
-	Metadata    map[string]any
+	Tenant     *uuid.UUID
+	Workspace  *uuid.UUID
+	Actor      uuid.UUID
+	Action     string
+	TargetType string
+	TargetID   *uuid.UUID
+	Summary    string
+	Metadata   map[string]any
 }
 
 // audit appends an immutable event in the same transaction as the change it records.
@@ -38,7 +38,10 @@ func audit(ctx context.Context, tx pgx.Tx, e auditEntry) error {
 		INSERT INTO audit_events (tenant_id, workspace_id, actor_id, action, target_type, target_id, summary, metadata, request_id)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		e.Tenant, e.Workspace, e.Actor, e.Action, e.TargetType, e.TargetID, e.Summary, raw, requestID(ctx))
-	return err
+	if err != nil {
+		return err
+	}
+	return enqueueWebhooks(ctx, tx, e, time.Now())
 }
 
 func (s *Server) auditEvents(w http.ResponseWriter, r *http.Request) {

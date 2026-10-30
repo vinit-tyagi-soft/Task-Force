@@ -23,20 +23,29 @@ type Config struct {
 	DevAuth       bool
 	SecureCookies bool
 	SessionTTL    time.Duration
+	// WebhookTransport overrides the SSRF-guarded transport (tests only).
+	WebhookTransport http.RoundTripper
 }
 
 type Server struct {
-	store *store.Store
-	cfg   Config
-	log   *slog.Logger
-	now   func() time.Time
+	store         *store.Store
+	cfg           Config
+	log           *slog.Logger
+	now           func() time.Time
+	webhookClient *http.Client
 }
 
 func New(s *store.Store, cfg Config, log *slog.Logger) *Server {
 	if cfg.SessionTTL == 0 {
 		cfg.SessionTTL = 8 * time.Hour
 	}
-	return &Server{store: s, cfg: cfg, log: log, now: time.Now}
+	transport := cfg.WebhookTransport
+	if transport == nil {
+		transport = guardedTransport()
+	}
+	client := &http.Client{Transport: transport, Timeout: 15 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	return &Server{store: s, cfg: cfg, log: log, now: time.Now, webhookClient: client}
 }
 
 func (s *Server) Routes() http.Handler {
@@ -81,6 +90,15 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/v1/organizations/{orgId}/automation-runs", a(s.listRuns))
 	mux.Handle("GET /api/v1/organizations/{orgId}/notifications", a(s.listNotifications))
 	mux.Handle("POST /api/v1/organizations/{orgId}/notifications/read", a(s.readNotifications))
+	mux.Handle("GET /api/v1/organizations/{orgId}/api-tokens", a(s.listTokens))
+	mux.Handle("POST /api/v1/organizations/{orgId}/api-tokens", a(s.createToken))
+	mux.Handle("POST /api/v1/api-tokens/{tokenId}/revoke", a(s.revokeToken))
+	mux.Handle("GET /api/v1/organizations/{orgId}/webhooks", a(s.listWebhooks))
+	mux.Handle("POST /api/v1/organizations/{orgId}/webhooks", a(s.createWebhook))
+	mux.Handle("PUT /api/v1/webhooks/{webhookId}", a(s.updateWebhook))
+	mux.Handle("DELETE /api/v1/webhooks/{webhookId}", a(s.deleteWebhook))
+	mux.Handle("POST /api/v1/webhooks/{webhookId}/test", a(s.testWebhook))
+	mux.Handle("GET /api/v1/organizations/{orgId}/webhook-deliveries", a(s.listDeliveries))
 	mux.Handle("GET /api/v1/organizations/{orgId}/threads", a(s.listThreads))
 	mux.Handle("POST /api/v1/organizations/{orgId}/threads", a(s.createThread))
 	mux.Handle("GET /api/v1/threads/{threadId}", a(s.getThread))
@@ -170,7 +188,9 @@ type httpError struct {
 
 func (e *httpError) Error() string { return e.msg }
 
-func errNotFound() error { return &httpError{404, "NOT_FOUND", "The resource does not exist or you do not have access.", nil} }
+func errNotFound() error {
+	return &httpError{404, "NOT_FOUND", "The resource does not exist or you do not have access.", nil}
+}
 func errForbidden(msg string) error {
 	return &httpError{403, "FORBIDDEN", msg, nil}
 }

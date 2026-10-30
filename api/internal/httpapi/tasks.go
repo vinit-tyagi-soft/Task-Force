@@ -84,7 +84,7 @@ func (t *taskRow) facts() domain.TaskFacts {
 // Task permissions derive from project access; the accountable owner may always
 // view and progress their own assignment.
 func taskPermissions(actor *authz.Actor, projectAccess authz.Access, t *taskRow) (read, edit bool) {
-	own := t.OwnerID == actor.UserID && (t.TenantID == nil || actor.IsMember(*t.TenantID))
+	own := t.OwnerID == actor.UserID && ((t.TenantID == nil && actor.CanReadPersonal()) || (t.TenantID != nil && actor.IsMember(*t.TenantID)))
 	read = projectAccess >= authz.AccessRead || own
 	edit = authz.CanEditTask(projectAccess, t.OwnerID, actor.UserID) || own
 	return read, edit
