@@ -19,6 +19,7 @@ const paths: Record<string, string> = {
   chevron: '<path d="m8 10 4 4 4-4"/>',
   left: '<path d="m15 5-7 7 7 7"/>',
   right: '<path d="m9 5 7 7-7 7"/>',
+  play: '<path d="m8 4 12 8L8 20z"/>',
   star: '<path d="m12 3 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z"/>',
   link: '<path d="m10 13 4-4m-6 7-2 2a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0m2 1 2-2a4 4 0 0 1 6 6l-5 5a4 4 0 0 1-6 0"/>',
   arrowUp: '<path d="M6 18 18 6M6 6h12v12"/>',

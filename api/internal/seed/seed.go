@@ -271,6 +271,17 @@ func load(ctx context.Context, tx pgx.Tx) error {
 		}
 	}
 
+	for _, rule := range [][4]string{
+		{"Keep overdue work visible", "TASK_OVERDUE", "NOTIFY_PROJECT_OWNER", "true"},
+		{"Escalate blocked priorities", "TASK_BLOCKED", "NOTIFY_PROJECT_MANAGERS", "true"},
+		{"Surface high-impact work due soon", "TASK_DUE_SOON", "NOTIFY_TASK_OWNER", "false"},
+	} {
+		if _, err := tx.Exec(ctx, `INSERT INTO automation_rules (tenant_id, name, trigger, action, enabled, created_by) VALUES ($1, $2, $3, $4, $5, $6)`,
+			orgIDs["org1"], rule[0], rule[1], rule[2], rule[3] == "true", userIDs["u1"]); err != nil {
+			return err
+		}
+	}
+
 	for i, th := range threads {
 		id := uuid.New()
 		at := time.Date(2026, 10, 30, 9, 42-i*7, 0, 0, time.UTC)

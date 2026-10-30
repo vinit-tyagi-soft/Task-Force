@@ -36,12 +36,13 @@ const (
 	AIManagePolicy   Permission = "ai.manage_policy"
 	TeamManage       Permission = "team.manage"
 	WorkloadRead     Permission = "workload.read"
+	AutomationManage Permission = "automation.manage"
 )
 
 // Org-scope permissions per system role (section 5.2 of the blueprint).
 var rolePermissions = map[Role][]Permission{
-	TenantOwner:    {OrgMembersInvite, OrgPolicyManage, ProjectCreate, ProjectReadAll, ProjectManageAll, ReportRead, ReportExport, AuditRead, AIQuery, AIManagePolicy, TeamManage, WorkloadRead},
-	OrgAdmin:       {OrgMembersInvite, OrgPolicyManage, ProjectCreate, ProjectReadAll, ProjectManageAll, ReportRead, ReportExport, AuditRead, AIManagePolicy, TeamManage, WorkloadRead},
+	TenantOwner:    {OrgMembersInvite, OrgPolicyManage, ProjectCreate, ProjectReadAll, ProjectManageAll, ReportRead, ReportExport, AuditRead, AIQuery, AIManagePolicy, TeamManage, WorkloadRead, AutomationManage},
+	OrgAdmin:       {OrgMembersInvite, OrgPolicyManage, ProjectCreate, ProjectReadAll, ProjectManageAll, ReportRead, ReportExport, AuditRead, AIManagePolicy, TeamManage, WorkloadRead, AutomationManage},
 	Executive:      {ProjectReadAll, ReportRead, ReportExport, AIQuery, WorkloadRead},
 	DepartmentHead: {ProjectCreate, TeamManage, WorkloadRead},
 	ProjectManager: {ProjectCreate, WorkloadRead},

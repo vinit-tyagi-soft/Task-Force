@@ -109,6 +109,54 @@ func TestMessagingPrivacy(t *testing.T) {
 	}
 }
 
+// Rules are admin-only, runs are idempotent per day, and alerts reach only people who can read the task.
+func TestAutomations(t *testing.T) {
+	e := setup(t)
+	vinit, arjun, ishaan, sara := e.user("vinit@example.com"), e.user("arjun.mehta@example.com"), e.user("ishaan.rao@example.com"), e.user("sara.khan@example.com")
+	acme, vertex := e.org("acme"), e.org("vertex")
+	base := "/api/v1/organizations/" + acme.String()
+
+	expect(t, e.do(arjun, "GET", base+"/automation-rules", nil), 403, "manager listing rules")
+	expect(t, e.do(arjun, "POST", base+"/automation-runs", nil), 403, "manager running rules")
+	expect(t, e.do(vinit, "POST", base+"/automation-rules", map[string]any{"name": "x", "trigger": "DROP TABLE", "action": "NOTIFY_TASK_OWNER"}), 422, "unknown trigger")
+	vertexRule := e.do(vinit, "POST", "/api/v1/organizations/"+vertex.String()+"/automation-rules", map[string]any{"name": "Vertex rule", "trigger": "TASK_BLOCKED", "action": "NOTIFY_TASK_OWNER", "enabled": true})
+	expect(t, vertexRule, 201, "owner creating vertex rule")
+	expect(t, e.do(arjun, "PUT", "/api/v1/automation-rules/"+vertexRule.body["id"].(string), map[string]any{"name": "x", "trigger": "TASK_BLOCKED", "action": "NOTIFY_TASK_OWNER"}, "If-Match", `"1"`), 404, "cross-tenant rule write")
+
+	run := e.do(vinit, "POST", base+"/automation-runs", nil)
+	expect(t, run, 200, "run rules")
+	notified := 0
+	for _, r := range items(run) {
+		notified += int(r["notified"].(float64))
+	}
+	if notified == 0 {
+		t.Fatal("first run created no notifications")
+	}
+	for _, r := range items(e.do(vinit, "POST", base+"/automation-runs", nil)) {
+		if r["notified"].(float64) != 0 {
+			t.Fatalf("second run on the same day re-notified %v", r["notified"])
+		}
+	}
+
+	// The blocked task sits in "Zero Trust rollout" (owner Sara); Arjun is a project manager there.
+	saraInbox := e.do(sara, "GET", base+"/notifications", nil)
+	if saraInbox.body["unread"].(float64) == 0 {
+		t.Fatal("project owner received no alerts")
+	}
+	if n := len(items(e.do(ishaan, "GET", base+"/notifications", nil))); n != 0 {
+		t.Fatalf("uninvolved member received %d alerts", n)
+	}
+	var personal int
+	_ = e.owner.QueryRow(context.Background(), `SELECT count(*) FROM notifications n JOIN tasks t ON t.id = n.task_id WHERE t.tenant_id IS NULL`).Scan(&personal)
+	if personal != 0 {
+		t.Fatalf("%d alerts reference private tasks", personal)
+	}
+	expect(t, e.do(sara, "POST", base+"/notifications/read", map[string]any{"all": true}), 204, "mark all read")
+	if e.do(sara, "GET", base+"/notifications", nil).body["unread"].(float64) != 0 {
+		t.Fatal("alerts still unread after mark all")
+	}
+}
+
 func fmtBody(r resp) string {
 	raw, _ := json.Marshal(r.body)
 	return string(raw)
