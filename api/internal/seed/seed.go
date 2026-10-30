@@ -270,7 +270,54 @@ func load(ctx context.Context, tx pgx.Tx) error {
 			}
 		}
 	}
+
+	for i, th := range threads {
+		id := uuid.New()
+		at := time.Date(2026, 10, 30, 9, 42-i*7, 0, 0, time.UTC)
+		var project *uuid.UUID
+		if th.project != "" {
+			p := projectIDs[th.project]
+			project = &p
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO message_threads (id, tenant_id, subject, project_id, created_by, created_at, last_message_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $6)`, id, orgIDs[th.org], th.subject, project, userIDs[th.from], at); err != nil {
+			return fmt.Errorf("thread %s: %w", th.subject, err)
+		}
+		for _, u := range append([]string{th.from}, th.to...) {
+			var read *time.Time
+			if u == th.from {
+				read = &at
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO thread_participants (thread_id, tenant_id, user_id, last_read_at, starred) VALUES ($1, $2, $3, $4, $5)`,
+				id, orgIDs[th.org], userIDs[u], read, th.starred && u != th.from); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO messages (thread_id, tenant_id, author_id, body, created_at) VALUES ($1, $2, $3, $4, $5)`,
+			id, orgIDs[th.org], userIDs[th.from], th.body, at); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+var threads = []struct {
+	org, from, subject, project, body string
+	to                                []string
+	starred                           bool
+}{
+	{"org1", "u2", "Launch readiness · review before Monday", "p1",
+		"Hi Vinit,\n\nAPI integration tests are progressing well. Could you review the enterprise authentication flow before our launch readiness meeting?\n\nWe need a final sign-off on the identity integration and a clear owner for outstanding dependencies.\n\nThanks,\nArjun",
+		[]string{"u1"}, true},
+	{"org1", "u5", "Identity provider dependency needs an owner", "p2",
+		"Hi Vinit,\n\nThe identity provider configuration is still pending. Please help align the infrastructure owner and security team before the next milestone.\n\nThanks,\nSara",
+		[]string{"u1", "u4"}, false},
+	{"org1", "u3", "Onboarding wireframes ready for approval", "p3",
+		"Hi Vinit,\n\nThe onboarding wireframes are ready. I'd love your approval before we start the visual pass.\n\nPriya",
+		[]string{"u1", "u7"}, false},
+	{"org2", "u6", "Partner portal copy review", "p8",
+		"Hi Vinit,\n\nSharing the first draft of the partner portal copy. Could you take a look this week?\n\nRohan",
+		[]string{"u1"}, false},
 }
 
 var teams = []struct {

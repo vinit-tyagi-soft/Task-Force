@@ -44,7 +44,7 @@ export function TaskForm({ taskId, defaults = {}, onClose }: { taskId?: string; 
         const today = me.today;
         const projectId = task?.project.id ?? (defaults.projectId && writable.some((p) => p.id === defaults.projectId) ? defaults.projectId : writable[0]?.id ?? "");
         setValues({
-          title: task?.title ?? "",
+          title: task?.title ?? defaults.title ?? "",
           project: projectId,
           owner: task?.owner?.id ?? me.user.id,
           status: task?.status ?? defaults.status ?? "TODO",
@@ -52,7 +52,7 @@ export function TaskForm({ taskId, defaults = {}, onClose }: { taskId?: string; 
           start_on: task?.start_on ?? today,
           due_on: task?.due_on ?? defaults.dueOn ?? addDays(today, 3),
           estimate_hours: String(task?.estimate_hours ?? 2),
-          description: task?.description ?? "",
+          description: task?.description ?? defaults.description ?? "",
           blocked_reason: task?.blocked_reason ?? "",
         });
       })

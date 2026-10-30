@@ -7,6 +7,8 @@ export interface TaskFormDefaults {
   projectId?: string;
   status?: Status;
   dueOn?: string;
+  title?: string;
+  description?: string;
 }
 
 export interface Session {

@@ -7,6 +7,10 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
+
+	"github.com/vinit-tyagi-soft/taskforce/api/internal/store"
 )
 
 // Reports are org-only, exports are permissioned, audited and formula-safe, saved views are private.
@@ -52,6 +56,57 @@ func TestReportsAndExports(t *testing.T) {
 	}
 	expect(t, e.do(vinit, "DELETE", "/api/v1/report-views/"+view.body["id"].(string), nil), 404, "deleting another user's view")
 	expect(t, e.do(meera, "DELETE", "/api/v1/report-views/"+view.body["id"].(string), nil), 204, "deleting own view")
+}
+
+// Threads are visible only to participants, even to org owners and executives.
+func TestMessagingPrivacy(t *testing.T) {
+	e := setup(t)
+	vinit, arjun, ishaan, meera := e.user("vinit@example.com"), e.user("arjun.mehta@example.com"), e.user("ishaan.rao@example.com"), e.user("meera.iyer@example.com")
+	acme, vertex := e.org("acme"), e.org("vertex")
+	base := "/api/v1/organizations/" + acme.String() + "/threads"
+	launch := e.id(`SELECT id FROM message_threads WHERE subject LIKE 'Launch readiness%'`).String()
+
+	if n := len(items(e.do(vinit, "GET", base, nil))); n != 3 {
+		t.Fatalf("vinit acme threads = %d, want 3", n)
+	}
+	if n := len(items(e.do(meera, "GET", base, nil))); n != 0 {
+		t.Fatalf("executive sees %d threads they are not part of", n)
+	}
+	expect(t, e.do(ishaan, "GET", "/api/v1/threads/"+launch, nil), 404, "non-participant reading thread")
+	expect(t, e.do(ishaan, "POST", "/api/v1/threads/"+launch+"/messages", map[string]any{"body": "hi"}), 404, "non-participant replying")
+	expect(t, e.do(ishaan, "PATCH", "/api/v1/threads/"+launch+"/state", map[string]any{"starred": true}), 404, "non-participant starring")
+	expect(t, e.do(arjun, "POST", "/api/v1/organizations/"+vertex.String()+"/threads", map[string]any{"subject": "x", "body": "y", "participant_ids": []string{vinit.String()}}), 404, "cross-tenant thread")
+	p2 := e.project("Zero Trust rollout").String()
+	expect(t, e.do(ishaan, "POST", base, map[string]any{"subject": "x", "body": "y", "participant_ids": []string{vinit.String()}, "project_id": p2}), 422, "linking an unreadable project")
+
+	thread := func(id string) map[string]any { return e.do(vinit, "GET", "/api/v1/threads/"+id, nil).body }
+	if thread(launch)["unread"] != true {
+		t.Fatal("seed thread should start unread")
+	}
+	expect(t, e.do(vinit, "PATCH", "/api/v1/threads/"+launch+"/state", map[string]any{"read": true}), 204, "mark read")
+	if thread(launch)["unread"] != false {
+		t.Fatal("thread still unread after marking read")
+	}
+	expect(t, e.do(arjun, "POST", "/api/v1/threads/"+launch+"/messages", map[string]any{"body": "Following up"}), 201, "participant reply")
+	if thread(launch)["unread"] != true {
+		t.Fatal("new reply should mark thread unread for others")
+	}
+
+	created := e.do(vinit, "POST", base, map[string]any{"subject": "Security sync", "body": "Can we meet?", "participant_ids": []string{arjun.String()}, "project_id": p2})
+	expect(t, created, 201, "create thread")
+	if created.body["project"] == nil || len(created.body["messages"].([]any)) != 1 {
+		t.Fatalf("created thread missing project or message: %v", created.body)
+	}
+
+	ctx := context.Background()
+	var visible int
+	s := &store.Store{Pool: e.app}
+	err := s.InTx(ctx, store.Scope{UserID: meera}, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT count(*) FROM messages`).Scan(&visible)
+	})
+	if err != nil || visible != 0 {
+		t.Fatalf("RLS exposed %d messages to a non-participant (err %v)", visible, err)
+	}
 }
 
 func fmtBody(r resp) string {

@@ -135,7 +135,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     {
       group: "CONNECT",
       items: [
-        { label: "Communication Hub", icon: "mail" },
+        { label: "Communication Hub", icon: "mail", href: "/messages" },
         { label: "Automations & Alerts", icon: "zap" },
         { label: "API & Integrations", icon: "grid" },
       ],
