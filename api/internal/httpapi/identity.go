@@ -178,7 +178,7 @@ type orgJSON struct {
 	Permissions       []authz.Permission `json:"permissions"`
 }
 
-var uiPermissions = []authz.Permission{authz.ProjectCreate, authz.ProjectReadAll, authz.ReportRead, authz.ReportExport, authz.AuditRead, authz.OrgMembersInvite, authz.AIQuery, authz.TeamManage, authz.WorkloadRead, authz.AutomationManage, authz.IntegrationManage}
+var uiPermissions = []authz.Permission{authz.ProjectCreate, authz.ProjectReadAll, authz.ReportRead, authz.ReportExport, authz.AuditRead, authz.OrgMembersInvite, authz.AIQuery, authz.TeamManage, authz.WorkloadRead, authz.AutomationManage, authz.IntegrationManage, authz.HiringManage}
 
 func (s *Server) getMe(w http.ResponseWriter, r *http.Request) {
 	actor := actorFrom(r.Context())

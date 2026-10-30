@@ -309,6 +309,48 @@ func load(ctx context.Context, tx pgx.Tx) error {
 			return err
 		}
 	}
+
+	for _, q := range []struct {
+		title, dept, manager, stage string
+		openings                    int
+		candidates                  [][3]string // name, stage, next interview (RFC 3339 or "")
+	}{
+		{"Senior frontend engineer", "Engineering", "u2", "INTERVIEWING", 2, [][3]string{
+			{"Aditi Rao", "INTERVIEW", "2026-11-02T11:00:00+05:30"}, {"Kabir Malhotra", "SCREEN", "2026-11-04T15:30:00+05:30"}}},
+		{"Security analyst", "Security", "u5", "SCREENING", 1, [][3]string{{"Leah Fernandes", "APPLIED", ""}}},
+		{"Product designer", "Design", "u3", "APPROVED", 1, nil},
+	} {
+		var id uuid.UUID
+		if err := tx.QueryRow(ctx, `INSERT INTO job_requisitions (tenant_id, title, department_id, hiring_manager_id, openings, stage, created_by)
+			VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`, orgIDs["org1"], q.title, depts["org1/"+q.dept], userIDs[q.manager],
+			q.openings, q.stage, userIDs["u8"]).Scan(&id); err != nil {
+			return fmt.Errorf("requisition %s: %w", q.title, err)
+		}
+		for _, c := range q.candidates {
+			var at *time.Time
+			if c[2] != "" {
+				t, _ := time.Parse(time.RFC3339, c[2])
+				at = &t
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO candidates (tenant_id, requisition_id, full_name, stage, next_interview_at) VALUES ($1, $2, $3, $4, $5)`,
+				orgIDs["org1"], id, c[0], c[1], at); err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, g := range []struct {
+		title, target string
+		progress      int
+	}{
+		{"Lead the enterprise launch retrospective", "2026-11-30", 40},
+		{"Complete secure development essentials", "2026-12-15", 35},
+	} {
+		if _, err := tx.Exec(ctx, `INSERT INTO development_goals (tenant_id, user_id, title, target_on, progress) VALUES ($1, $2, $3, $4::date, $5)`,
+			orgIDs["org1"], userIDs["u1"], g.title, g.target, g.progress); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

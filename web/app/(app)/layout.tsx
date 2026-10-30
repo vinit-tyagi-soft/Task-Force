@@ -121,7 +121,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         { label: "Projects & Tasks", icon: "folder", href: orgWs ? `/workspaces/${orgWs}/projects` : undefined, match: (p) => p.startsWith("/workspaces/") || (p.startsWith("/projects/") && !p.endsWith("/board")) },
         { label: "Kanban Boards", icon: "columns", href: "/board", match: (p) => p.startsWith("/board") || p.endsWith("/board") },
         { label: "Teams & Workload", icon: "users", href: "/teams" },
-        { label: "Development & Hiring", icon: "growth" },
+        { label: "Development & Hiring", icon: "growth", href: "/people" },
       ],
     },
     {

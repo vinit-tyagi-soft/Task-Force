@@ -329,3 +329,52 @@ func TestCalendarScopes(t *testing.T) {
 	expect(t, e.do(arjun, "GET", "/api/v1/me/calendar?scope=company&org="+vertex.String()+"&"+rng, nil), 404, "cross-tenant calendar")
 	expect(t, e.do(vinit, "GET", "/api/v1/me/calendar?scope=mine&from=2026-01-01&to=2026-12-31", nil), 422, "oversized range")
 }
+
+func TestHiringAndDevelopment(t *testing.T) {
+	e := setup(t)
+	vinit, arjun, ishaan, ananya := e.user("vinit@example.com"), e.user("arjun.mehta@example.com"), e.user("ishaan.rao@example.com"), e.user("ananya.sen@example.com")
+	acme, vertex := e.org("acme"), e.org("vertex")
+	base := "/api/v1/organizations/" + acme.String()
+
+	hr := e.do(ananya, "GET", base+"/hiring", nil)
+	expect(t, hr, 200, "HR listing hiring")
+	if len(items(hr)) != 3 || hr.body["can_manage"] != true {
+		t.Fatalf("HR sees %d requisitions, can_manage=%v", len(items(hr)), hr.body["can_manage"])
+	}
+	mgr := items(e.do(arjun, "GET", base+"/hiring", nil))
+	if len(mgr) != 1 || mgr[0]["title"] != "Senior frontend engineer" || len(mgr[0]["candidates"].([]any)) != 2 {
+		t.Fatalf("hiring manager should see only their requisition with its candidates, got %v", titles(mgr))
+	}
+	if n := len(items(e.do(ishaan, "GET", base+"/hiring", nil))); n != 0 {
+		t.Fatalf("member sees %d requisitions", n)
+	}
+	expect(t, e.do(ananya, "GET", "/api/v1/organizations/"+vertex.String()+"/hiring", nil), 404, "non-member org")
+
+	frontend := mgr[0]["id"].(string)
+	expect(t, e.do(arjun, "PATCH", "/api/v1/requisitions/"+frontend, map[string]any{"stage": "OFFER"}, "If-Match", `"1"`), 403, "manager changing stage")
+	expect(t, e.do(ishaan, "PATCH", "/api/v1/requisitions/"+frontend, map[string]any{"stage": "OFFER"}, "If-Match", `"1"`), 404, "member changing stage")
+	expect(t, e.do(ananya, "PATCH", "/api/v1/requisitions/"+frontend, map[string]any{"stage": "OFFER"}, "If-Match", `"1"`), 200, "HR changing stage")
+
+	c := e.do(ananya, "POST", "/api/v1/requisitions/"+frontend+"/candidates", map[string]any{"full_name": "Zoya Confidential", "email": "zoya@example.net"})
+	expect(t, c, 201, "HR adding candidate")
+	cid := c.body["id"].(string)
+	expect(t, e.do(ananya, "PATCH", "/api/v1/candidates/"+cid, map[string]any{"stage": "INTERVIEW", "next_interview_at": "2026-11-05T10:00:00Z"}, "If-Match", `"1"`), 200, "move candidate")
+	expect(t, e.do(ananya, "PATCH", "/api/v1/candidates/"+cid, map[string]any{"stage": "OFFER"}, "If-Match", `"1"`), 412, "stale candidate write")
+	expect(t, e.do(arjun, "PATCH", "/api/v1/candidates/"+cid, map[string]any{"stage": "HIRED"}, "If-Match", `"2"`), 403, "manager moving candidate")
+	var leaked int
+	_ = e.owner.QueryRow(context.Background(), `SELECT count(*) FROM audit_events WHERE summary ILIKE '%zoya%'`).Scan(&leaked)
+	if leaked != 0 {
+		t.Fatal("candidate name leaked into the audit log")
+	}
+
+	g := e.do(vinit, "POST", base+"/goals", map[string]any{"title": "Mentor two engineers", "target_on": "2026-12-01"})
+	expect(t, g, 201, "create goal")
+	gid := g.body["id"].(string)
+	if ts := titles(items(e.do(ananya, "GET", base+"/goals", nil))); ts["Mentor two engineers"] {
+		t.Fatal("HR can read another person's development goals")
+	}
+	expect(t, e.do(ananya, "PATCH", "/api/v1/goals/"+gid, map[string]any{"progress": 100}), 404, "editing someone else's goal")
+	if p := e.do(vinit, "PATCH", "/api/v1/goals/"+gid, map[string]any{"progress": 60}); p.status != 200 || p.body["progress"] != float64(60) {
+		t.Fatalf("owner update: %d %s", p.status, fmtBody(p))
+	}
+}
