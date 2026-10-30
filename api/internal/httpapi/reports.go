@@ -44,11 +44,6 @@ func (s *Server) executiveSummary(w http.ResponseWriter, r *http.Request) {
 		Name    string         `json:"name"`
 		Metrics domain.Metrics `json:"metrics"`
 	}
-	type trendPoint struct {
-		Date      string `json:"date"`
-		Planned   int    `json:"planned"`
-		Completed int    `json:"completed"`
-	}
 	var resp struct {
 		Organization struct {
 			ID       uuid.UUID `json:"id"`
@@ -119,14 +114,7 @@ func (s *Server) executiveSummary(w http.ResponseWriter, r *http.Request) {
 		}
 		all := []domain.TaskFacts{}
 		byDept := map[string][]domain.TaskFacts{}
-		window := map[string]*trendPoint{}
-		for i := 6; i >= 0; i-- {
-			d := today.AddDate(0, 0, -i).Format(time.DateOnly)
-			resp.Trend = append(resp.Trend, trendPoint{Date: d})
-		}
-		for i := range resp.Trend {
-			window[resp.Trend[i].Date] = &resp.Trend[i]
-		}
+		resp.Trend = buildTrend(ts, today, o.Timezone)
 		var queue []*taskRow
 		for _, t := range ts {
 			f := t.facts()
@@ -134,16 +122,6 @@ func (s *Server) executiveSummary(w http.ResponseWriter, r *http.Request) {
 			byDept[deptOf[t.ProjectID]] = append(byDept[deptOf[t.ProjectID]], f)
 			if t.Status == domain.StatusBlocked || f.Overdue(today) {
 				queue = append(queue, t)
-			}
-			if t.DueOn != nil && t.Status != domain.StatusCancelled {
-				if pt, ok := window[t.DueOn.Format(time.DateOnly)]; ok {
-					pt.Planned++
-				}
-			}
-			if t.CompletedAt != nil {
-				if pt, ok := window[domain.LocalDate(*t.CompletedAt, o.Timezone).Format(time.DateOnly)]; ok {
-					pt.Completed++
-				}
 			}
 		}
 		resp.Metrics = domain.Compute(all, today)

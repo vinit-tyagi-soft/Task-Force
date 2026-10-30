@@ -74,6 +74,12 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("DELETE /api/v1/teams/{teamId}", a(s.deleteTeam))
 	mux.Handle("GET /api/v1/organizations/{orgId}/workload", a(s.workload))
 	mux.Handle("GET /api/v1/organizations/{orgId}/executive-summary", a(s.executiveSummary))
+	mux.Handle("GET /api/v1/organizations/{orgId}/reports/tasks", a(s.reportTasks))
+	mux.Handle("GET /api/v1/organizations/{orgId}/reports/tasks.csv", a(s.exportTasks))
+	mux.Handle("GET /api/v1/organizations/{orgId}/reports/exports", a(s.listReportExports))
+	mux.Handle("GET /api/v1/organizations/{orgId}/report-views", a(s.listReportViews))
+	mux.Handle("POST /api/v1/organizations/{orgId}/report-views", a(s.createReportView))
+	mux.Handle("DELETE /api/v1/report-views/{viewId}", a(s.deleteReportView))
 	mux.Handle("GET /api/v1/organizations/{orgId}/audit-events", a(s.auditEvents))
 
 	return s.middleware(mux)

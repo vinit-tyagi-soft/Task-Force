@@ -128,7 +128,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       group: "INSIGHTS",
       items: [
         { label: "Executive Dashboard", icon: "chart", href: activeOrg ? `/org/${activeOrg.id}/executive` : undefined, permission: "report.read", match: (p) => p.startsWith("/org/") },
-        { label: "Reports & Insights", icon: "pie" },
+        { label: "Reports & Insights", icon: "pie", href: "/reports", permission: "report.read" },
         { label: "AI Intelligence Center", icon: "sparkles" },
       ],
     },

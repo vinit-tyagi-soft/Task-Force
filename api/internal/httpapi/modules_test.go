@@ -2,8 +2,62 @@ package httpapi_test
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 )
+
+// Reports are org-only, exports are permissioned, audited and formula-safe, saved views are private.
+func TestReportsAndExports(t *testing.T) {
+	e := setup(t)
+	vinit, meera, ishaan := e.user("vinit@example.com"), e.user("meera.iyer@example.com"), e.user("ishaan.rao@example.com")
+	acme := e.org("acme")
+	base := "/api/v1/organizations/" + acme.String()
+	p1 := e.project("Enterprise workspace launch")
+	expect(t, e.do(vinit, "POST", "/api/v1/projects/"+p1.String()+"/tasks", map[string]any{"title": "=HYPERLINK(\"http://x\")", "due_on": "2026-10-30"}), 201, "task with formula title")
+
+	expect(t, e.do(ishaan, "GET", base+"/reports/tasks", nil), 403, "member reading reports")
+	rep := e.do(meera, "GET", base+"/reports/tasks?period=30", nil)
+	expect(t, rep, 200, "executive report")
+	if strings.Contains(fmtBody(rep), "Read a chapter on leadership") {
+		t.Fatal("report leaked private work")
+	}
+	expect(t, e.do(meera, "GET", base+"/reports/tasks?period=90", nil), 422, "invalid period")
+
+	req, _ := http.NewRequest("GET", e.srv.URL+base+"/reports/tasks.csv", nil)
+	req.Header.Set("Authorization", "Bearer "+token(meera))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+	csvText := string(raw)
+	if res.StatusCode != 200 || !strings.Contains(csvText, `'=HYPERLINK`) || strings.Contains(csvText, "Read a chapter on leadership") {
+		t.Fatalf("csv export: status %d, formula-safe %v", res.StatusCode, strings.Contains(csvText, `'=HYPERLINK`))
+	}
+	var exports, audits int
+	_ = e.owner.QueryRow(context.Background(), `SELECT count(*) FROM report_exports WHERE actor_id = $1`, meera).Scan(&exports)
+	_ = e.owner.QueryRow(context.Background(), `SELECT count(*) FROM audit_events WHERE actor_id = $1 AND action = 'report.exported'`, meera).Scan(&audits)
+	if exports != 1 || audits != 1 {
+		t.Fatalf("export history %d, audit events %d; want 1 each", exports, audits)
+	}
+
+	view := e.do(meera, "POST", base+"/report-views", map[string]any{"name": "Monthly review", "period": "30"})
+	expect(t, view, 201, "save view")
+	if n := len(items(e.do(vinit, "GET", base+"/report-views", nil))); n != 0 {
+		t.Fatalf("another user's saved views visible: %d", n)
+	}
+	expect(t, e.do(vinit, "DELETE", "/api/v1/report-views/"+view.body["id"].(string), nil), 404, "deleting another user's view")
+	expect(t, e.do(meera, "DELETE", "/api/v1/report-views/"+view.body["id"].(string), nil), 204, "deleting own view")
+}
+
+func fmtBody(r resp) string {
+	raw, _ := json.Marshal(r.body)
+	return string(raw)
+}
 
 // Teams are org-scoped, writes need team.manage, and workload visibility narrows by role.
 func TestTeamsAndWorkload(t *testing.T) {
