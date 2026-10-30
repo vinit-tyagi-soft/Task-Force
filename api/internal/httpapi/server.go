@@ -51,6 +51,7 @@ func (s *Server) Routes() http.Handler {
 	a := s.authenticated
 	mux.Handle("GET /api/v1/me", a(s.getMe))
 	mux.Handle("GET /api/v1/me/work-items", a(s.myWorkItems))
+	mux.Handle("GET /api/v1/me/calendar", a(s.calendar))
 	mux.Handle("GET /api/v1/workspaces", a(s.listWorkspaces))
 	mux.Handle("GET /api/v1/workspaces/{workspaceId}/projects", a(s.listProjects))
 	mux.Handle("POST /api/v1/workspaces/{workspaceId}/projects", a(s.createProject))

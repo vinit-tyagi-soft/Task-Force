@@ -18,6 +18,7 @@ const paths: Record<string, string> = {
   bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 12h4"/>',
   chevron: '<path d="m8 10 4 4 4-4"/>',
   left: '<path d="m15 5-7 7 7 7"/>',
+  right: '<path d="m9 5 7 7-7 7"/>',
   arrowUp: '<path d="M6 18 18 6M6 6h12v12"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>',

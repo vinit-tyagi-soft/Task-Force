@@ -111,7 +111,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       items: [
         { label: "Personal Dashboard", icon: "dashboard", href: "/personal", match: (p) => p === "/personal" },
         { label: "My Work", icon: "checkSquare", href: "/my-work" },
-        { label: "My Calendar", icon: "calendar" },
+        { label: "My Calendar", icon: "calendar", href: "/calendar" },
         { label: "Personal Projects", icon: "lock", href: "/personal/projects" },
       ],
     },
