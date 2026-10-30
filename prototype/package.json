@@ -1,0 +1,13 @@
+{
+  "name": "taskforce-dashboard-studio",
+  "version": "3.1.0",
+  "private": true,
+  "description": "TaskForce enterprise dashboard UI — dependency-free interactive frontend",
+  "scripts": {
+    "start": "node scripts/serve.cjs",
+    "build": "node scripts/build.cjs",
+    "test": "node --test tests/domain.test.cjs",
+    "check": "node scripts/check.cjs"
+  },
+  "engines": { "node": ">=18" }
+}
