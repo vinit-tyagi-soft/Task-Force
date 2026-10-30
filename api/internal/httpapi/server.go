@@ -99,6 +99,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("DELETE /api/v1/webhooks/{webhookId}", a(s.deleteWebhook))
 	mux.Handle("POST /api/v1/webhooks/{webhookId}/test", a(s.testWebhook))
 	mux.Handle("GET /api/v1/organizations/{orgId}/webhook-deliveries", a(s.listDeliveries))
+	mux.Handle("POST /api/v1/organizations/{orgId}/ai/ask", a(s.askAI))
+	mux.Handle("GET /api/v1/organizations/{orgId}/ai/history", a(s.aiHistory))
 	mux.Handle("GET /api/v1/organizations/{orgId}/hiring", a(s.listHiring))
 	mux.Handle("POST /api/v1/organizations/{orgId}/requisitions", a(s.createRequisition))
 	mux.Handle("PATCH /api/v1/requisitions/{reqId}", a(s.updateRequisition))

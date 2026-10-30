@@ -378,3 +378,42 @@ func TestHiringAndDevelopment(t *testing.T) {
 		t.Fatalf("owner update: %d %s", p.status, fmtBody(p))
 	}
 }
+
+func TestAIAssistant(t *testing.T) {
+	for q, want := range map[string]string{
+		"What is blocked?": "BLOCKED", "Anything overdue?": "OVERDUE", "My highest priorities": "PRIORITIES",
+		"Who is overloaded?": "WORKLOAD", "Summarize the portfolio": "SUMMARY", "Tell me a joke": "UNKNOWN",
+	} {
+		if got := httpapi.ClassifyQuestion(q); got != want {
+			t.Errorf("ClassifyQuestion(%q) = %s, want %s", q, got, want)
+		}
+	}
+
+	e := setup(t)
+	vinit, arjun, meera := e.user("vinit@example.com"), e.user("arjun.mehta@example.com"), e.user("meera.iyer@example.com")
+	acme, vertex := e.org("acme"), e.org("vertex")
+	base := "/api/v1/organizations/" + acme.String()
+
+	expect(t, e.do(arjun, "POST", base+"/ai/ask", map[string]any{"question": "What is blocked?"}), 403, "member without ai.query")
+	for _, q := range []string{"What is blocked?", "My highest priorities", "Summarize the portfolio", "Who is overloaded?"} {
+		for _, org := range []string{acme.String(), vertex.String()} {
+			a := e.do(vinit, "POST", "/api/v1/organizations/"+org+"/ai/ask", map[string]any{"question": q})
+			expect(t, a, 200, "ask "+q)
+			for _, src := range a.body["sources"].([]any) {
+				if tid, _ := src.(map[string]any)["tenant_id"].(string); tid != org {
+					t.Fatalf("%q in %s cited a source outside the organization (tenant %q)", q, org, tid)
+				}
+			}
+		}
+	}
+	blocked := e.do(vinit, "POST", base+"/ai/ask", map[string]any{"question": "What is blocked?"})
+	if len(blocked.body["sources"].([]any)) == 0 || !strings.Contains(blocked.body["answer"].(string), "blocked") {
+		t.Fatalf("blocked answer has no sources: %s", fmtBody(blocked))
+	}
+	if n := len(items(e.do(vinit, "GET", base+"/ai/history", nil))); n == 0 {
+		t.Fatal("asker has no history")
+	}
+	if n := len(items(e.do(meera, "GET", base+"/ai/history", nil))); n != 0 {
+		t.Fatalf("another executive sees %d of the owner's questions", n)
+	}
+}
