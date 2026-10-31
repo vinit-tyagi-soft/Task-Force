@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: taskforce_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TF_TEST_MIGRATE_DATABASE_URL: postgres://postgres:postgres@localhost:5432/taskforce_test?sslmode=disable
+      TF_TEST_DATABASE_URL: postgres://taskforce_app:taskforce_dev@localhost:5432/taskforce_test?sslmode=disable
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+      - name: Migrate and enable app role
+        env:
+          TF_MIGRATE_DATABASE_URL: ${{ env.TF_TEST_MIGRATE_DATABASE_URL }}
+          PGPASSWORD: postgres
+        run: |
+          go run ./cmd/tfadmin migrate
+          psql -h localhost -U postgres -d taskforce_test -c "ALTER ROLE taskforce_app LOGIN PASSWORD 'taskforce_dev'"
+      - run: go vet ./...
+      - run: go test ./... -count=1
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
