@@ -4,6 +4,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	_ "embed"
 	"errors"
 	"io"
 	"log/slog"
@@ -17,6 +18,15 @@ import (
 
 	"github.com/vinit-tyagi-soft/taskforce/api/internal/store"
 )
+
+//go:embed openapi.json
+var openAPIDocument []byte
+
+func (s *Server) openAPI(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/vnd.oai.openapi+json;version=3.1")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(openAPIDocument)
+}
 
 type Config struct {
 	SessionSecret []byte
@@ -51,6 +61,7 @@ func New(s *store.Store, cfg Config, log *slog.Logger) *Server {
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, r, 200, map[string]string{"status": "ok"}) })
+	mux.HandleFunc("GET /openapi.json", s.openAPI)
 
 	if s.cfg.DevAuth {
 		mux.HandleFunc("POST /api/v1/dev/login", s.devLogin)
