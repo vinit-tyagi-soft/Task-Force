@@ -4,7 +4,9 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -37,7 +39,11 @@ func run(log *slog.Logger) error {
 		addr = "127.0.0.1:8080"
 	}
 	devAuth := os.Getenv("TF_DEV_AUTH") == "true"
+	secureCookies := os.Getenv("TF_SECURE_COOKIES") == "true"
 	if devAuth {
+		if err := checkDevAuth(addr, secureCookies); err != nil {
+			return err
+		}
 		log.Warn("development login is enabled; never enable TF_DEV_AUTH in production")
 	}
 
@@ -53,7 +59,7 @@ func run(log *slog.Logger) error {
 	api := httpapi.New(&store.Store{Pool: pool}, httpapi.Config{
 		SessionSecret: []byte(secret),
 		DevAuth:       devAuth,
-		SecureCookies: os.Getenv("TF_SECURE_COOKIES") == "true",
+		SecureCookies: secureCookies,
 	}, log)
 
 	srv := &http.Server{
@@ -79,4 +85,23 @@ func run(log *slog.Logger) error {
 	shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(shutdown)
+}
+
+// checkDevAuth refuses the passwordless demo login anywhere it could be reached
+// by other machines: behind HTTPS or on a non-loopback listen address.
+func checkDevAuth(addr string, secureCookies bool) error {
+	if secureCookies {
+		return errors.New("TF_DEV_AUTH cannot be combined with TF_SECURE_COOKIES; the demo login is for local development only")
+	}
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("invalid TF_ADDR %q: %w", addr, err)
+	}
+	if host == "localhost" {
+		return nil
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return nil
+	}
+	return fmt.Errorf("TF_DEV_AUTH requires a loopback TF_ADDR such as 127.0.0.1:8080, got %q", addr)
 }

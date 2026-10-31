@@ -149,7 +149,7 @@ The web app talks to the JSON API at `/api/v1`. For scripts, create a personal a
 | `TF_DATABASE_URL` | API | Connection as `taskforce_app` (required) |
 | `TF_SESSION_SECRET` | API | HMAC key for session cookies, at least 32 characters (required) |
 | `TF_ADDR` | API | Listen address, default `127.0.0.1:8080` |
-| `TF_DEV_AUTH` | API | `true` enables the passwordless demo login. Never enable it in production. |
+| `TF_DEV_AUTH` | API | `true` enables the passwordless demo login. Never enable it in production. The API refuses to start with it unless `TF_ADDR` is a loopback address and `TF_SECURE_COOKIES` is off. |
 | `TF_SECURE_COOKIES` | API | `true` marks cookies `Secure` (use behind HTTPS) |
 | `TF_MIGRATE_DATABASE_URL` | tfadmin | Owner connection used for migrations and seeding |
 | `TASKFORCE_API_ORIGIN` | web | API origin for the `/api` proxy, default `http://127.0.0.1:8080` |
