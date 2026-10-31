@@ -99,6 +99,15 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("DELETE /api/v1/webhooks/{webhookId}", a(s.deleteWebhook))
 	mux.Handle("POST /api/v1/webhooks/{webhookId}/test", a(s.testWebhook))
 	mux.Handle("GET /api/v1/organizations/{orgId}/webhook-deliveries", a(s.listDeliveries))
+	mux.Handle("GET /api/v1/tasks/{taskId}/details", a(s.taskDetails))
+	mux.Handle("POST /api/v1/tasks/{taskId}/checklist", a(s.addChecklistItem))
+	mux.Handle("PATCH /api/v1/checklist-items/{itemId}", a(s.updateChecklistItem))
+	mux.Handle("DELETE /api/v1/checklist-items/{itemId}", a(s.deleteChecklistItem))
+	mux.Handle("POST /api/v1/tasks/{taskId}/dependencies", a(s.addDependency))
+	mux.Handle("DELETE /api/v1/tasks/{taskId}/dependencies/{dependsOnId}", a(s.removeDependency))
+	mux.Handle("POST /api/v1/tasks/{taskId}/attachments", a(s.uploadAttachment))
+	mux.Handle("GET /api/v1/attachments/{attachmentId}", a(s.downloadAttachment))
+	mux.Handle("DELETE /api/v1/attachments/{attachmentId}", a(s.deleteAttachment))
 	mux.Handle("POST /api/v1/projects/{projectId}/milestones", a(s.createMilestone))
 	mux.Handle("PATCH /api/v1/milestones/{milestoneId}", a(s.updateMilestone))
 	mux.Handle("DELETE /api/v1/milestones/{milestoneId}", a(s.deleteMilestone))
@@ -166,7 +175,11 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Cache-Control", "no-store")
 		h.Set("Referrer-Policy", "no-referrer")
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		limit := int64(1 << 20)
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/attachments") {
+			limit = maxAttachmentBytes + 64<<10
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
 
 		rec := &statusRecorder{ResponseWriter: w, status: 200}
 		defer func() {

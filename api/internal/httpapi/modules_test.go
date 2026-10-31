@@ -1,9 +1,11 @@
 package httpapi_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -500,4 +502,84 @@ func TestMilestonesAndProjectAccess(t *testing.T) {
 	expect(t, e.do(ishaan, "GET", "/api/v1/projects/"+zt, nil), 404, "removed member")
 	expect(t, e.do(ishaan, "DELETE", "/api/v1/milestones/"+mid, nil), 404, "removed member deleting milestone")
 	expect(t, e.do(vinit, "DELETE", "/api/v1/milestones/"+mid, nil), 204, "owner deletes milestone")
+}
+
+func TestTaskDetail(t *testing.T) {
+	e := setup(t)
+	vinit, ishaan := e.user("vinit@example.com"), e.user("ishaan.rao@example.com")
+	acme := e.org("acme")
+	ztProject := e.project("Zero Trust rollout")
+	zt1 := e.id(`SELECT id FROM tasks WHERE project_id = $1 ORDER BY number LIMIT 1`, ztProject).String()
+	zt2 := e.id(`SELECT id FROM tasks WHERE project_id = $1 ORDER BY number OFFSET 1 LIMIT 1`, ztProject).String()
+	hidden := e.id(`SELECT t.id FROM tasks t JOIN projects p ON p.id = t.project_id WHERE p.tenant_id = $1 AND p.id <> $2
+		AND p.owner_id <> $3 AND t.owner_id <> $3 AND NOT EXISTS (SELECT 1 FROM project_memberships m WHERE m.project_id = p.id AND m.user_id = $3)
+		ORDER BY t.number LIMIT 1`, acme, ztProject, ishaan).String()
+	private := e.id(`SELECT t.id FROM tasks t JOIN workspaces w ON w.id = t.workspace_id WHERE w.kind = 'PERSONAL' AND w.owner_user_id = $1 LIMIT 1`, vinit).String()
+	task := "/api/v1/tasks/"
+	dep := func(from, to string) resp {
+		return e.do(vinit, "POST", task+from+"/dependencies", map[string]any{"depends_on_task_id": to})
+	}
+	upload := func(user uuid.UUID, id, name string, data []byte) int {
+		var buf bytes.Buffer
+		mw := multipart.NewWriter(&buf)
+		fw, _ := mw.CreateFormFile("file", name)
+		_, _ = fw.Write(data)
+		_ = mw.Close()
+		req, _ := http.NewRequest("POST", e.srv.URL+task+id+"/attachments", &buf)
+		req.Header.Set("Authorization", "Bearer "+token(user))
+		req.Header.Set("Content-Type", mw.FormDataContentType())
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res.StatusCode
+	}
+
+	expect(t, dep(zt1, zt2), 201, "add dependency")
+	expect(t, dep(zt2, zt1), 422, "circular dependency")
+	expect(t, dep(zt1, private), 422, "dependency on private work")
+	expect(t, dep(zt1, hidden), 201, "dependency on another org project")
+	expect(t, e.do(vinit, "POST", task+zt1+"/checklist", map[string]any{"title": "Review IdP metadata"}), 201, "add checklist item")
+	if code := upload(vinit, zt1, "../../etc/notes.txt", []byte("hello zero trust")); code != 201 {
+		t.Fatalf("upload: %d", code)
+	}
+	if code := upload(vinit, zt1, "big.bin", bytes.Repeat([]byte("x"), 6<<20)); code != 422 {
+		t.Fatalf("oversized upload: %d", code)
+	}
+
+	expect(t, e.do(ishaan, "GET", task+zt1+"/details", nil), 404, "outsider reading details")
+	expect(t, e.do(vinit, "PUT", "/api/v1/projects/"+ztProject.String()+"/access/"+ishaan.String(), map[string]any{"access_level": "VIEWER"}), 200, "grant viewer")
+	d := e.do(ishaan, "GET", task+zt1+"/details", nil)
+	expect(t, d, 200, "viewer reading details")
+	deps := d.body["depends_on"].([]any)
+	if len(deps) != 1 || deps[0].(map[string]any)["id"] != zt2 {
+		t.Fatalf("viewer should see only the readable dependency, got %v", deps)
+	}
+	att := d.body["attachments"].([]any)[0].(map[string]any)
+	if att["filename"] != "notes.txt" {
+		t.Fatalf("filename not sanitized: %v", att["filename"])
+	}
+	item := d.body["checklist"].([]any)[0].(map[string]any)["id"].(string)
+	expect(t, e.do(ishaan, "PATCH", "/api/v1/checklist-items/"+item, map[string]any{"done": true}), 403, "viewer ticking checklist")
+	expect(t, e.do(vinit, "PATCH", "/api/v1/checklist-items/"+item, map[string]any{"done": true}), 200, "owner ticking checklist")
+	if code := upload(ishaan, zt1, "x.txt", []byte("x")); code != 403 {
+		t.Fatalf("viewer upload: %d", code)
+	}
+
+	req, _ := http.NewRequest("GET", e.srv.URL+"/api/v1/attachments/"+att["id"].(string), nil)
+	req.Header.Set("Authorization", "Bearer "+token(ishaan))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+	if res.StatusCode != 200 || string(body) != "hello zero trust" || !strings.HasPrefix(res.Header.Get("Content-Disposition"), "attachment") {
+		t.Fatalf("download: %d %q %q", res.StatusCode, body, res.Header.Get("Content-Disposition"))
+	}
+	expect(t, e.do(ishaan, "DELETE", "/api/v1/attachments/"+att["id"].(string), nil), 403, "viewer deleting attachment")
+	expect(t, e.do(vinit, "DELETE", "/api/v1/projects/"+ztProject.String()+"/access/"+ishaan.String(), nil), 204, "revoke viewer")
+	expect(t, e.do(ishaan, "GET", "/api/v1/attachments/"+att["id"].(string), nil), 404, "revoked member downloading")
+	expect(t, e.do(vinit, "DELETE", task+zt1+"/dependencies/"+zt2, nil), 204, "remove dependency")
 }

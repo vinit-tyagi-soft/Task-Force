@@ -23,13 +23,14 @@ interface RequestOptions {
 
 export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { "X-TaskForce-Client": "web" };
-  if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+  const form = opts.body instanceof FormData;
+  if (opts.body !== undefined && !form) headers["Content-Type"] = "application/json";
   if (opts.version !== undefined) headers["If-Match"] = `"${opts.version}"`;
   if (opts.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;
   const res = await fetch(`/api/v1${path}`, {
     method: opts.method ?? "GET",
     headers,
-    body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+    body: opts.body === undefined ? undefined : form ? (opts.body as FormData) : JSON.stringify(opts.body),
     credentials: "same-origin",
     cache: "no-store",
   });

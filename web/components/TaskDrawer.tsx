@@ -8,6 +8,7 @@ import type { Comment, List, Status, Task } from "@/lib/types";
 import { Icon } from "./Icon";
 import { Avatar, Badge, Button, IconButton, PriorityTag } from "./ui";
 import { useSession } from "./session";
+import { TaskExtras } from "./TaskExtras";
 
 export function TaskDrawer({ taskId, onClose }: { taskId: string; onClose: () => void }) {
   const { activeOrg, refreshKey, refresh, toast, openTaskForm } = useSession();
@@ -112,6 +113,7 @@ export function TaskDrawer({ taskId, onClose }: { taskId: string; onClose: () =>
                   </div>
                 )}
               </div>
+              <TaskExtras taskId={t.id} projectId={t.project.id} />
               <div className="drawer-section">
                 <h3>Keep the conversation moving</h3>
                 {(comments.data?.items ?? []).map((c) => (
