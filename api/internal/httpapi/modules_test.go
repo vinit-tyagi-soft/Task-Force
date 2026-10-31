@@ -469,3 +469,35 @@ func TestAdministration(t *testing.T) {
 	}
 	expect(t, e.do(vinit, "GET", "/api/v1/organizations/"+created.body["id"].(string), nil), 404, "outsider reading new org")
 }
+
+func TestMilestonesAndProjectAccess(t *testing.T) {
+	e := setup(t)
+	vinit, arjun, ishaan := e.user("vinit@example.com"), e.user("arjun.mehta@example.com"), e.user("ishaan.rao@example.com")
+	zt := e.project("Zero Trust rollout").String()
+	personal := e.id(`SELECT p.id FROM projects p JOIN workspaces w ON w.id = p.workspace_id WHERE w.kind = 'PERSONAL' AND w.owner_user_id = $1 LIMIT 1`, vinit).String()
+	vertexProject := e.id(`SELECT p.id FROM projects p JOIN organizations o ON o.id = p.tenant_id WHERE o.slug = 'vertex' LIMIT 1`).String()
+	access := func(by uuid.UUID, project string, who uuid.UUID, level string) resp {
+		return e.do(by, "PUT", "/api/v1/projects/"+project+"/access/"+who.String(), map[string]any{"access_level": level})
+	}
+
+	expect(t, e.do(ishaan, "GET", "/api/v1/projects/"+zt, nil), 404, "non-member before access")
+	expect(t, access(ishaan, zt, ishaan, "MANAGER"), 404, "outsider granting themselves access")
+	expect(t, access(vinit, zt, ishaan, "VIEWER"), 200, "owner adds viewer")
+	expect(t, e.do(ishaan, "GET", "/api/v1/projects/"+zt, nil), 200, "viewer reads project")
+	expect(t, e.do(ishaan, "POST", "/api/v1/projects/"+zt+"/milestones", map[string]any{"title": "x", "target_on": "2026-12-01"}), 403, "viewer adding milestone")
+	expect(t, access(vinit, zt, ishaan, "MANAGER"), 200, "promote to manager")
+	ms := e.do(ishaan, "POST", "/api/v1/projects/"+zt+"/milestones", map[string]any{"title": "Pilot sign-off", "target_on": "2026-12-01"})
+	expect(t, ms, 201, "manager adds milestone")
+	mid := ms.body["id"].(string)
+	if d := e.do(ishaan, "PATCH", "/api/v1/milestones/"+mid, map[string]any{"state": "DONE"}); d.status != 200 || d.body["state"] != "DONE" {
+		t.Fatalf("complete milestone: %d %s", d.status, fmtBody(d))
+	}
+	expect(t, e.do(ishaan, "DELETE", "/api/v1/projects/"+zt+"/access/"+ishaan.String(), nil), 403, "removing yourself")
+	expect(t, access(vinit, personal, ishaan, "VIEWER"), 422, "sharing a personal project")
+	expect(t, e.do(arjun, "PATCH", "/api/v1/milestones/"+mid, map[string]any{"title": "x"}), 403, "contributor editing milestone")
+	expect(t, access(vinit, vertexProject, arjun, "VIEWER"), 422, "adding a non-member of the organization")
+	expect(t, e.do(vinit, "DELETE", "/api/v1/projects/"+zt+"/access/"+ishaan.String(), nil), 204, "remove member")
+	expect(t, e.do(ishaan, "GET", "/api/v1/projects/"+zt, nil), 404, "removed member")
+	expect(t, e.do(ishaan, "DELETE", "/api/v1/milestones/"+mid, nil), 404, "removed member deleting milestone")
+	expect(t, e.do(vinit, "DELETE", "/api/v1/milestones/"+mid, nil), 204, "owner deletes milestone")
+}
