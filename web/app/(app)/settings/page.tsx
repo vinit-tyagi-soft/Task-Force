@@ -40,6 +40,7 @@ export default function Settings() {
           {activeOrg && admin && (
             <>
               <OrgSettings key={`${activeOrg.id}-${activeOrg.name}-${activeOrg.reporting_timezone}`} act={act} />
+              {can("ai.manage_policy") && <AIPolicyCard orgId={activeOrg.id} act={act} />}
               <Card title="People & access" sub={`${activeOrg.name} · roles apply on the next request`}>
                 <InviteForm act={act} owner={owner} />
                 {members.error ? (
@@ -231,5 +232,43 @@ function CreateOrg({ act }: { act: Act }) {
         <button type="submit" className="btn primary">Create organization</button>
       </div>
     </form>
+  );
+}
+
+interface Policy { enabled: boolean; allowed_intents: string[]; retention_days: number; version: number }
+const intentLabel: Record<string, string> = {
+  BLOCKED: "Blocked work", OVERDUE: "Overdue work", PRIORITIES: "Personal priorities", WORKLOAD: "Team workload", SUMMARY: "Portfolio summary",
+};
+
+function AIPolicyCard({ orgId, act }: { orgId: string; act: Act }) {
+  const { refreshKey } = useSession();
+  const data = useApi<{ policy: Policy; intents: string[] }>(`/organizations/${orgId}/ai/policy`, refreshKey);
+  if (data.error) return <Card title="AI policy"><LoadError message={data.error.message} onRetry={data.reload} /></Card>;
+  if (!data.data) return null;
+  const p = data.data.policy;
+  const save = (next: Partial<Policy>, done: string) =>
+    act(() => api(`/organizations/${orgId}/ai/policy`, { method: "PUT", version: p.version, body: { ...p, ...next } }), done);
+
+  return (
+    <Card title="AI policy" sub="Rules-based assistant · no external model · answers only from work each person can already see">
+      <label className="settings-row">
+        <span><b style={{ fontSize: 12 }}>AI Intelligence Center</b><p>{p.enabled ? "On for owners and executives" : "Off for everyone in this organization"}</p></span>
+        <button type="button" className={`toggle ${p.enabled ? "on" : ""}`} role="switch" aria-checked={p.enabled} aria-label="AI Intelligence Center"
+          onClick={() => save({ enabled: !p.enabled }, p.enabled ? "AI turned off" : "AI turned on")}><span /></button>
+      </label>
+      {data.data.intents.map((i) => (
+        <label className="checklist-item" key={i}>
+          <input type="checkbox" checked={p.allowed_intents.includes(i)} disabled={!p.enabled}
+            onChange={(e) => save({ allowed_intents: e.target.checked ? [...p.allowed_intents, i] : p.allowed_intents.filter((x) => x !== i) }, "AI policy saved")} />
+          {intentLabel[i] ?? i}
+        </label>
+      ))}
+      <label className="settings-row">
+        <span><b style={{ fontSize: 12 }}>Question history</b><p>Each person’s questions are private and deleted after this period.</p></span>
+        <select aria-label="History retention" value={p.retention_days} onChange={(e) => save({ retention_days: Number(e.target.value) }, "AI policy saved")}>
+          {[7, 30, 90, 365].map((d) => <option key={d} value={d}>{d} days</option>)}
+        </select>
+      </label>
+    </Card>
   );
 }

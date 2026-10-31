@@ -9,7 +9,7 @@ import { Badge, Card, Empty, Heading, LoadError, Loading, Notice } from "@/compo
 import { useSession } from "@/components/session";
 
 interface Source { id: string; key: string; title: string; status: string; due_on: string | null; project: { name: string } }
-interface Answer { question: string; intent: string; answer: string; method: string; scope: string; as_of: string; sources: Source[] }
+interface Answer { policy_blocked?: boolean; question: string; intent: string; answer: string; method: string; scope: string; as_of: string; sources: Source[] }
 interface HistoryItem { id: string; question: string; intent: string; source_count: number; created_at: string }
 
 const suggestions = ["What is blocked?", "What is overdue?", "My highest priorities", "Who is overloaded?", "Summarize the portfolio"];
@@ -19,6 +19,7 @@ export default function AIPage() {
   const allowed = can("ai.query");
   const base = activeOrg ? `/organizations/${activeOrg.id}` : null;
   const history = useApi<List<HistoryItem>>(base && allowed ? `${base}/ai/history` : null, refreshKey);
+  const policy = useApi<{ policy: { enabled: boolean } }>(base && allowed ? `${base}/ai/policy` : null, refreshKey);
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [asking, setAsking] = useState(false);
@@ -26,7 +27,8 @@ export default function AIPage() {
   if (!activeOrg) return <Empty title="No organization selected" desc="The AI Intelligence Center works inside an organization. Switch to one from the workspace menu." />;
   if (!allowed) return <Empty title="Not available for your role" desc="The AI Intelligence Center is available to organization owners and executives." />;
   if (history.error) return <LoadError message={history.error.message} onRetry={history.reload} />;
-  if (!history.data) return <Loading />;
+  if (!history.data || !policy.data) return <Loading />;
+  if (!policy.data.policy.enabled) return <Empty title="AI is turned off" desc="Your organization's AI policy has turned off the AI Intelligence Center. An owner or admin can turn it on in Settings." />;
 
   async function ask(q: string) {
     if (!q.trim()) return;
@@ -67,7 +69,7 @@ export default function AIPage() {
           </section>
           {answer && (
             <section className="ai-answer">
-              <div className="row between"><h3>{answer.question}</h3><Badge label="Rules-based answer" tone="gray" /></div>
+              <div className="row between"><h3>{answer.question}</h3><Badge label={answer.policy_blocked ? "Blocked by AI policy" : "Rules-based answer"} tone={answer.policy_blocked ? "orange" : "gray"} /></div>
               <p style={{ margin: "15px 0" }}>{answer.answer}</p>
               <div className="tiny muted" style={{ marginBottom: 7 }}>SOURCE RECORDS · {answer.scope}</div>
               {answer.sources.length ? (

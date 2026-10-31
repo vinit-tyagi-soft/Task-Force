@@ -75,12 +75,27 @@ func (s *Server) askAI(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{"question": in.Question, "intent": intent}
 	err := s.store.InTx(r.Context(), scope, func(tx pgx.Tx) error {
 		ctx := r.Context()
+		policy, err := loadAIPolicy(ctx, tx, org)
+		if err != nil {
+			return err
+		}
+		if !policy.Enabled {
+			return errForbidden("The AI Intelligence Center is turned off by your organization's AI policy.")
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM ai_queries WHERE tenant_id = $1 AND user_id = $2 AND created_at < now() - make_interval(days => $3)`,
+			org, actor.UserID, policy.RetentionDays); err != nil {
+			return err
+		}
 		d, err := s.loadReport(ctx, tx, actor, org, reportFilter{Period: "all"})
 		if err != nil {
 			return err
 		}
-		answer, sources, err := s.answer(ctx, tx, actor, org, intent, d)
-		if err != nil {
+		var answer string
+		var sources []*taskRow
+		if intent != "UNKNOWN" && !slices.Contains(policy.AllowedIntents, intent) {
+			answer = "Your organization's AI policy does not allow " + strings.ToLower(intent) + " questions. Ask an administrator if you need them."
+			resp["policy_blocked"] = true
+		} else if answer, sources, err = s.answer(ctx, tx, actor, org, intent, d); err != nil {
 			return err
 		}
 		if len(sources) > aiSourceLimit {
@@ -287,7 +302,9 @@ func (s *Server) aiHistory(w http.ResponseWriter, r *http.Request) {
 	out := []entry{}
 	err := s.store.InTx(r.Context(), scope, func(tx pgx.Tx) error {
 		rows, err := tx.Query(r.Context(), `SELECT id, question, intent, source_count, created_at FROM ai_queries
-			WHERE tenant_id = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 10`, org, actor.UserID)
+			WHERE tenant_id = $1 AND user_id = $2
+			  AND created_at >= now() - make_interval(days => coalesce((SELECT retention_days FROM ai_policies WHERE tenant_id = $1), 90))
+			ORDER BY created_at DESC LIMIT 10`, org, actor.UserID)
 		if err != nil {
 			return err
 		}
@@ -306,4 +323,122 @@ func (s *Server) aiHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, r, 200, map[string]any{"items": out})
+}
+
+var aiPolicyIntents = []string{"BLOCKED", "OVERDUE", "PRIORITIES", "WORKLOAD", "SUMMARY"}
+
+type aiPolicy struct {
+	Enabled        bool       `json:"enabled"`
+	AllowedIntents []string   `json:"allowed_intents"`
+	RetentionDays  int        `json:"retention_days"`
+	Version        int        `json:"version"`
+	UpdatedAt      *time.Time `json:"updated_at"`
+}
+
+// loadAIPolicy returns the org's policy, or the defaults when none has been saved.
+func loadAIPolicy(ctx context.Context, tx pgx.Tx, org uuid.UUID) (aiPolicy, error) {
+	p := aiPolicy{Enabled: true, AllowedIntents: aiPolicyIntents, RetentionDays: 90, Version: 1}
+	err := tx.QueryRow(ctx, `SELECT enabled, allowed_intents, retention_days, version, updated_at FROM ai_policies WHERE tenant_id = $1`, org).
+		Scan(&p.Enabled, &p.AllowedIntents, &p.RetentionDays, &p.Version, &p.UpdatedAt)
+	if store.IsNoRows(err) {
+		return p, nil
+	}
+	return p, err
+}
+
+func (s *Server) getAIPolicy(w http.ResponseWriter, r *http.Request) {
+	actor := actorFrom(r.Context())
+	org, err := pathUUID(r, "orgId")
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	scope, err := orgScope(actor, org)
+	if err == nil && !actor.Can(org, authz.AIQuery) && !actor.Can(org, authz.AIManagePolicy) {
+		err = errForbidden("Your role does not include the AI Intelligence Center.")
+	}
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	var p aiPolicy
+	err = s.store.InTx(r.Context(), scope, func(tx pgx.Tx) error {
+		p, err = loadAIPolicy(r.Context(), tx, org)
+		return err
+	})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	setETag(w, p.Version)
+	writeJSON(w, r, 200, map[string]any{"policy": p, "intents": aiPolicyIntents, "can_manage": actor.Can(org, authz.AIManagePolicy)})
+}
+
+func (s *Server) updateAIPolicy(w http.ResponseWriter, r *http.Request) {
+	actor, org, scope, ok := s.adminScope(w, r, authz.AIManagePolicy)
+	if !ok {
+		return
+	}
+	version, err := ifMatchVersion(r)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	var in struct {
+		Enabled        bool     `json:"enabled"`
+		AllowedIntents []string `json:"allowed_intents"`
+		RetentionDays  int      `json:"retention_days"`
+	}
+	if err := decode(r, &in); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	errs := map[string]string{}
+	allowed := []string{}
+	for _, i := range aiPolicyIntents {
+		if slices.Contains(in.AllowedIntents, i) {
+			allowed = append(allowed, i)
+		}
+	}
+	if len(allowed) != len(in.AllowedIntents) {
+		errs["allowed_intents"] = "Choose from " + strings.Join(aiPolicyIntents, ", ") + "."
+	}
+	if !slices.Contains([]int{7, 30, 90, 365}, in.RetentionDays) {
+		errs["retention_days"] = "Keep history for 7, 30, 90 or 365 days."
+	}
+	if len(errs) > 0 {
+		s.fail(w, r, errValidation(errs))
+		return
+	}
+	var out aiPolicy
+	err = s.store.InTx(r.Context(), scope, func(tx pgx.Tx) error {
+		ctx := r.Context()
+		current, err := loadAIPolicy(ctx, tx, org)
+		if err != nil {
+			return err
+		}
+		if current.Version != version {
+			return errVersionConflict()
+		}
+		if err := tx.QueryRow(ctx, `INSERT INTO ai_policies (tenant_id, enabled, allowed_intents, retention_days, version, updated_by)
+			VALUES ($1, $2, $3, $4, 2, $5)
+			ON CONFLICT (tenant_id) DO UPDATE SET enabled = EXCLUDED.enabled, allowed_intents = EXCLUDED.allowed_intents,
+				retention_days = EXCLUDED.retention_days, version = ai_policies.version + 1, updated_by = EXCLUDED.updated_by, updated_at = now()
+			RETURNING enabled, allowed_intents, retention_days, version, updated_at`, org, in.Enabled, allowed, in.RetentionDays, actor.UserID).
+			Scan(&out.Enabled, &out.AllowedIntents, &out.RetentionDays, &out.Version, &out.UpdatedAt); err != nil {
+			return err
+		}
+		state := "on"
+		if !out.Enabled {
+			state = "off"
+		}
+		return audit(ctx, tx, auditEntry{Tenant: &org, Actor: actor.UserID, Action: "ai.policy_updated", TargetType: "organization", TargetID: &org,
+			Summary: fmt.Sprintf("set AI %s, %d question types, %d-day history", state, len(allowed), in.RetentionDays)})
+	})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	setETag(w, out.Version)
+	writeJSON(w, r, 200, map[string]any{"policy": out, "intents": aiPolicyIntents, "can_manage": true})
 }

@@ -123,6 +123,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("PATCH /api/v1/organizations/{orgId}/members/{userId}", a(s.setMemberState))
 	mux.Handle("POST /api/v1/organizations/{orgId}/ai/ask", a(s.askAI))
 	mux.Handle("GET /api/v1/organizations/{orgId}/ai/history", a(s.aiHistory))
+	mux.Handle("GET /api/v1/organizations/{orgId}/ai/policy", a(s.getAIPolicy))
+	mux.Handle("PUT /api/v1/organizations/{orgId}/ai/policy", a(s.updateAIPolicy))
 	mux.Handle("GET /api/v1/organizations/{orgId}/hiring", a(s.listHiring))
 	mux.Handle("POST /api/v1/organizations/{orgId}/requisitions", a(s.createRequisition))
 	mux.Handle("PATCH /api/v1/requisitions/{reqId}", a(s.updateRequisition))

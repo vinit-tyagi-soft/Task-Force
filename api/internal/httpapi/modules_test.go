@@ -583,3 +583,32 @@ func TestTaskDetail(t *testing.T) {
 	expect(t, e.do(ishaan, "GET", "/api/v1/attachments/"+att["id"].(string), nil), 404, "revoked member downloading")
 	expect(t, e.do(vinit, "DELETE", task+zt1+"/dependencies/"+zt2, nil), 204, "remove dependency")
 }
+
+func TestAIPolicy(t *testing.T) {
+	e := setup(t)
+	vinit, meera := e.user("vinit@example.com"), e.user("meera.iyer@example.com")
+	base := "/api/v1/organizations/" + e.org("acme").String()
+	put := func(by uuid.UUID, version string, body map[string]any) resp {
+		return e.do(by, "PUT", base+"/ai/policy", body, "If-Match", version)
+	}
+	ask := func(q string) resp { return e.do(meera, "POST", base+"/ai/ask", map[string]any{"question": q}) }
+
+	p := e.do(meera, "GET", base+"/ai/policy", nil)
+	if p.status != 200 || p.body["can_manage"] != false || p.body["policy"].(map[string]any)["enabled"] != true {
+		t.Fatalf("default policy: %d %s", p.status, fmtBody(p))
+	}
+	narrow := map[string]any{"enabled": true, "allowed_intents": []string{"BLOCKED", "SUMMARY"}, "retention_days": 30}
+	expect(t, put(meera, `"1"`, narrow), 403, "executive changing AI policy")
+	expect(t, put(vinit, `"1"`, map[string]any{"enabled": true, "allowed_intents": []string{"DROP"}, "retention_days": 30}), 422, "unknown intent")
+	expect(t, put(vinit, `"1"`, narrow), 200, "owner narrows policy")
+	expect(t, put(vinit, `"1"`, narrow), 412, "stale policy write")
+
+	blocked := ask("Who is overloaded?")
+	if blocked.status != 200 || blocked.body["policy_blocked"] != true || len(blocked.body["sources"].([]any)) != 0 {
+		t.Fatalf("disallowed intent: %d %s", blocked.status, fmtBody(blocked))
+	}
+	expect(t, ask("What is blocked?"), 200, "allowed intent")
+
+	expect(t, put(vinit, `"2"`, map[string]any{"enabled": false, "allowed_intents": []string{}, "retention_days": 7}), 200, "turn AI off")
+	expect(t, ask("What is blocked?"), 403, "asking with AI turned off")
+}

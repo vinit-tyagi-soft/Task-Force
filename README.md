@@ -111,6 +111,7 @@ The integration tests reset and reseed `taskforce_test`. The app-side checks run
 | Module | Web route | Who can use it | Highlights |
 | --- | --- | --- | --- |
 | Dashboards, My Work, Projects, Kanban | `/personal`, `/org`, `/my-work`, `/projects`, `/board` | Everyone (by project access) | Personal and organization workspaces, task drawer, comments, audit |
+| Project & task detail | `/projects/[id]`, task drawer | Project managers edit milestones and access; task editors manage checklists and links | Milestones, project member access (manager, contributor, viewer; personal projects can't be shared), task checklists, cycle-free dependencies within one workspace, attachments up to 5 MB stored in PostgreSQL and downloadable only by task readers |
 | My Calendar | `/calendar` | Everyone | Month/week/day views; mine, company and personal scopes; milestones |
 | Teams & Workload | `/teams` | Everyone reads teams; `team.manage` edits; `workload.read` sees all workload | Capacity status (available, balanced, over capacity); team leads see their own team |
 | Reports & Insights | `/reports` | `report.read` (owner, admin, executive) | Metrics, trend, risk list, saved views (private); CSV export needs `report.export` and is audited and formula-safe |
@@ -118,7 +119,8 @@ The integration tests reset and reseed `taskforce_test`. The app-side checks run
 | Automations & Alerts | `/automations` | `automation.manage` for rules; everyone gets their alerts | Whitelisted triggers and actions, manual "Run rules now", deduplicated alerts that reach only people who can already read the task |
 | API & Integrations | `/integrations` | `integration.manage` (owner, admin) | Scoped personal access tokens, signed webhooks, delivery log, test ping |
 | Development & Hiring | `/people` | Hiring: HR, admins, owners and each requisition's hiring manager (read-only). Goals: each person | Requisition stages, candidates, upcoming interviews; candidate names are kept out of audit summaries |
-| AI Intelligence Center | `/ai` | `ai.query` (owner, executive) | Rules-based answers (blocked, overdue, my priorities, workload, summary) with cited source tasks; question history private to the asker |
+| AI Intelligence Center | `/ai` | `ai.query` (owner, executive) | Rules-based answers (blocked, overdue, my priorities, workload, summary) with cited source tasks; question history private to the asker. Owners and admins set the AI policy: on/off, allowed question types, history retention (7–365 days) |
+| Settings & Administration | `/settings` | Owners and admins | Create organizations, invite members (accepted in-app), change roles, suspend or remove members; owners are protected and every organization keeps at least one owner |
 
 ## Not yet implemented
 
@@ -126,4 +128,4 @@ The integration tests reset and reseed `taskforce_test`. The app-side checks run
 - OAuth app connectors (Slack, Google, Jira, …). Their catalog cards show "Needs OAuth app setup".
 - Scheduled automation runs. Rules currently run on demand.
 - Model-based AI. The assistant is deliberately rules-based and does not call any external LLM.
-- File attachments and email ingestion.
+- Email ingestion and invitation emails (invitations are accepted inside the app).
