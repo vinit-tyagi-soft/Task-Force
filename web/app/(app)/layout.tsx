@@ -53,7 +53,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         setActiveOrgId(org?.id ?? null);
       })
       .catch(() => router.replace("/login"));
-  }, [router]);
+  }, [router, refreshKey]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

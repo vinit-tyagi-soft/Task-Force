@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/vinit-tyagi-soft/taskforce/api/internal/httpapi"
@@ -416,4 +417,55 @@ func TestAIAssistant(t *testing.T) {
 	if n := len(items(e.do(meera, "GET", base+"/ai/history", nil))); n != 0 {
 		t.Fatalf("another executive sees %d of the owner's questions", n)
 	}
+}
+
+func TestAdministration(t *testing.T) {
+	e := setup(t)
+	vinit, arjun, ishaan := e.user("vinit@example.com"), e.user("arjun.mehta@example.com"), e.user("ishaan.rao@example.com")
+	acme := e.org("acme")
+	base := "/api/v1/organizations/" + acme.String()
+	invite := func(by uuid.UUID, email, role string) resp {
+		return e.do(by, "POST", base+"/invitations", map[string]any{"email": email, "display_name": "New Person", "role": role})
+	}
+
+	expect(t, invite(arjun, "new.person@example.com", "MEMBER"), 403, "manager inviting")
+	expect(t, invite(vinit, "new.person@example.com", "MEMBER"), 201, "owner inviting")
+	expect(t, invite(vinit, "NEW.person@example.com", "MEMBER"), 422, "duplicate invitation")
+	newbie := e.user("new.person@example.com")
+	expect(t, e.do(newbie, "GET", base, nil), 404, "invitee before accepting")
+	if n := len(items(e.do(newbie, "GET", "/api/v1/me/invitations", nil))); n != 1 {
+		t.Fatalf("invitee sees %d invitations", n)
+	}
+	expect(t, e.do(newbie, "POST", base+"/invitations/accept", nil), 200, "accept")
+	expect(t, e.do(newbie, "GET", base, nil), 200, "member after accepting")
+	expect(t, e.do(ishaan, "POST", base+"/invitations/accept", nil), 404, "accepting without an invitation")
+
+	member := base + "/members/" + newbie.String()
+	expect(t, e.do(ishaan, "PUT", member+"/roles", map[string]any{"roles": []string{"ORG_ADMIN"}}), 403, "member granting roles")
+	expect(t, e.do(vinit, "PUT", member+"/roles", map[string]any{"roles": []string{"ROOT"}}), 422, "unknown role")
+	expect(t, e.do(vinit, "PUT", member+"/roles", map[string]any{"roles": []string{"ORG_ADMIN"}}), 200, "owner granting admin")
+	expect(t, e.do(newbie, "PATCH", base+"/members/"+vinit.String(), map[string]any{"state": "SUSPENDED"}), 403, "admin suspending owner")
+	expect(t, invite(newbie, "second.owner@example.com", "TENANT_OWNER"), 403, "admin inviting an owner")
+	expect(t, e.do(vinit, "PUT", base+"/members/"+vinit.String()+"/roles", map[string]any{"roles": []string{"ORG_ADMIN"}}), 422, "removing the last owner")
+	expect(t, e.do(vinit, "PATCH", base+"/members/"+vinit.String(), map[string]any{"state": "SUSPENDED"}), 403, "suspending yourself")
+
+	expect(t, e.do(vinit, "PATCH", member, map[string]any{"state": "SUSPENDED"}), 200, "suspend")
+	expect(t, e.do(newbie, "GET", base, nil), 404, "suspended member on an existing session")
+	expect(t, e.do(vinit, "PATCH", member, map[string]any{"state": "ACTIVE"}), 200, "reactivate")
+	expect(t, e.do(newbie, "GET", base, nil), 200, "reactivated member")
+
+	expect(t, e.do(arjun, "PATCH", base, map[string]any{"name": "Hijacked"}), 403, "manager editing org")
+	expect(t, e.do(vinit, "PATCH", base, map[string]any{"reporting_timezone": "Mars/Base"}), 422, "bad timezone")
+	if o := e.do(vinit, "PATCH", base, map[string]any{"reporting_timezone": "Europe/London"}); o.status != 200 || o.body["reporting_timezone"] != "Europe/London" {
+		t.Fatalf("org update: %d %s", o.status, fmtBody(o))
+	}
+
+	expect(t, e.do(ishaan, "POST", "/api/v1/organizations", map[string]any{"name": "Taken", "slug": "acme"}), 422, "duplicate slug")
+	created := e.do(ishaan, "POST", "/api/v1/organizations", map[string]any{"name": "Ishaan Labs", "slug": "ishaan-labs", "reporting_timezone": "Asia/Kolkata"})
+	expect(t, created, 201, "create organization")
+	o := e.do(ishaan, "GET", "/api/v1/organizations/"+created.body["id"].(string), nil)
+	if o.status != 200 || !strings.Contains(fmtBody(o), "TENANT_OWNER") {
+		t.Fatalf("creator is not the owner: %d %s", o.status, fmtBody(o))
+	}
+	expect(t, e.do(vinit, "GET", "/api/v1/organizations/"+created.body["id"].(string), nil), 404, "outsider reading new org")
 }
