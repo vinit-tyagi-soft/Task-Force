@@ -3,8 +3,8 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
