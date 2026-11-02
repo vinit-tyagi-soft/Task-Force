@@ -43,6 +43,7 @@ type Server struct {
 	log           *slog.Logger
 	now           func() time.Time
 	webhookClient *http.Client
+	metrics       *httpMetrics
 }
 
 func New(s *store.Store, cfg Config, log *slog.Logger) *Server {
@@ -55,12 +56,14 @@ func New(s *store.Store, cfg Config, log *slog.Logger) *Server {
 	}
 	client := &http.Client{Transport: transport, Timeout: 15 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	return &Server{store: s, cfg: cfg, log: log, now: time.Now, webhookClient: client}
+	return &Server{store: s, cfg: cfg, log: log, now: time.Now, webhookClient: client, metrics: newHTTPMetrics()}
 }
 
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, r, 200, map[string]string{"status": "ok"}) })
+	mux.HandleFunc("GET /readyz", s.ready)
+	mux.HandleFunc("GET /metrics", s.serveMetrics)
 	mux.HandleFunc("GET /openapi.json", s.openAPI)
 
 	if s.cfg.DevAuth {
@@ -200,8 +203,24 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 				s.log.Error("panic", "request_id", rid, "panic", p, "stack", string(debug.Stack()))
 				writeError(rec, r, http.StatusInternalServerError, "INTERNAL", "Something went wrong.", nil)
 			}
-			s.log.Info("request", "request_id", rid, "method", r.Method, "path", r.URL.Path,
-				"status", rec.status, "duration_ms", s.now().Sub(start).Milliseconds())
+			if skipTelemetry(r.URL.Path) {
+				return
+			}
+			seconds := s.now().Sub(start).Seconds()
+			s.metrics.observe(rec.status, seconds)
+			route := r.Pattern
+			if route == "" {
+				route = r.URL.Path
+			}
+			attrs := []any{"request_id", rid, "method", r.Method, "route", route,
+				"status", rec.status, "duration_ms", int64(seconds * 1000)}
+			if a := actorFrom(r.Context()); a != nil && a.UserID != uuid.Nil {
+				attrs = append(attrs, "user_id", a.UserID.String())
+			}
+			if org := r.PathValue("orgId"); org != "" {
+				attrs = append(attrs, "tenant_id", org)
+			}
+			s.log.Info("request", attrs...)
 		}()
 		next.ServeHTTP(rec, r)
 	})
