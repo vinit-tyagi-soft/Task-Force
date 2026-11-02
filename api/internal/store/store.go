@@ -109,6 +109,25 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, files fs.FS) error {
 	return nil
 }
 
+// EnableAppLogin lets the non-privileged app role sign in. The password is
+// passed as a parameter and quoted by PostgreSQL; it is never logged.
+func EnableAppLogin(ctx context.Context, pool *pgxpool.Pool, password string) error {
+	if password == "" {
+		return errors.New("TF_APP_PASSWORD is required")
+	}
+	if strings.ContainsRune(password, 0) {
+		return errors.New("TF_APP_PASSWORD contains a null byte")
+	}
+	var stmt string
+	if err := pool.QueryRow(ctx, `SELECT format('ALTER ROLE taskforce_app LOGIN PASSWORD %L', $1::text)`, password).Scan(&stmt); err != nil {
+		return err
+	}
+	if _, err := pool.Exec(ctx, stmt); err != nil {
+		return errors.New("could not enable login for taskforce_app")
+	}
+	return nil
+}
+
 func IsNoRows(err error) bool { return errors.Is(err, pgx.ErrNoRows) }
 
 // ConstraintMessage returns the database message for check/trigger violations that are safe to show.

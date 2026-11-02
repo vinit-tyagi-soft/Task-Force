@@ -1,8 +1,9 @@
 // Command tfadmin runs migrations and loads fictional demo data.
 //
-//	tfadmin migrate   apply pending migrations
-//	tfadmin seed      migrate, then load demo data if the database is empty
-//	tfadmin reset     migrate, truncate all data, then load demo data
+//	tfadmin migrate    apply pending migrations
+//	tfadmin bootstrap  migrate, then let taskforce_app log in with TF_APP_PASSWORD
+//	tfadmin seed       migrate, then load demo data if the database is empty
+//	tfadmin reset      migrate, truncate all data, then load demo data
 //
 // It connects with TF_MIGRATE_DATABASE_URL (schema owner), never the app role.
 package main
@@ -26,7 +27,7 @@ func main() {
 
 func run() error {
 	if len(os.Args) != 2 {
-		return fmt.Errorf("usage: tfadmin migrate|seed|reset")
+		return fmt.Errorf("usage: tfadmin migrate|bootstrap|seed|reset")
 	}
 	url := os.Getenv("TF_MIGRATE_DATABASE_URL")
 	if url == "" {
@@ -44,6 +45,12 @@ func run() error {
 	switch os.Args[1] {
 	case "migrate":
 		fmt.Println("migrations applied")
+		return nil
+	case "bootstrap":
+		if err := store.EnableAppLogin(ctx, pool, os.Getenv("TF_APP_PASSWORD")); err != nil {
+			return err
+		}
+		fmt.Println("migrations applied and taskforce_app can log in")
 		return nil
 	case "seed":
 		loaded, err := seed.Load(ctx, pool, false)

@@ -1,0 +1,58 @@
+# Local or single-host production. The API listens inside the container on
+# 0.0.0.0, so TF_DEV_AUTH must stay unset: the process refuses the demo login
+# on a non-loopback address. Publish only through a TLS proxy; see README.
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: taskforce
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: taskforce
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskforce -d taskforce"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    build: ./api
+    entrypoint: ["/tfadmin"]
+    command: ["bootstrap"]
+    environment:
+      TF_MIGRATE_DATABASE_URL: postgres://taskforce:${POSTGRES_PASSWORD}@db:5432/taskforce?sslmode=disable
+      TF_APP_PASSWORD: ${TF_APP_PASSWORD:?set TF_APP_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: ./api
+    environment:
+      TF_DATABASE_URL: postgres://taskforce_app:${TF_APP_PASSWORD}@db:5432/taskforce?sslmode=disable
+      TF_SESSION_SECRET: ${TF_SESSION_SECRET:?set TF_SESSION_SECRET to at least 32 characters}
+      TF_ADDR: 0.0.0.0:8080
+      TF_SECURE_COOKIES: ${TF_SECURE_COOKIES:-false}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  web:
+    build: ./web
+    environment:
+      TASKFORCE_API_ORIGIN: http://api:8080
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:

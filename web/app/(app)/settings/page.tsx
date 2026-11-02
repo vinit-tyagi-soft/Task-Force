@@ -184,11 +184,12 @@ function InviteForm({ act, owner }: { act: Act; owner: boolean }) {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (await act(() => api(`/organizations/${activeOrg!.id}/invitations`, { method: "POST", body: v }), `Invited ${v.email}`)) setV({ email: "", display_name: "", role: "MEMBER" });
+    if (await act(() => api(`/organizations/${activeOrg!.id}/invitations`, { method: "POST", body: v }), `Invitation saved for ${v.email}. No email is sent.`)) setV({ email: "", display_name: "", role: "MEMBER" });
   }
 
   return (
-    <form className="row wrap" style={{ gap: 8, marginBottom: 16 }} onSubmit={submit}>
+    <>
+    <form className="row wrap" style={{ gap: 8, marginBottom: 8 }} onSubmit={submit}>
       <input aria-label="Name" placeholder="Full name" value={v.display_name} onChange={(e) => setV((x) => ({ ...x, display_name: e.target.value }))} required maxLength={120} />
       <input aria-label="Email" type="email" placeholder="name@company.com" value={v.email} onChange={(e) => setV((x) => ({ ...x, email: e.target.value }))} required maxLength={320} />
       <select aria-label="Role" value={v.role} onChange={(e) => setV((x) => ({ ...x, role: e.target.value }))}>
@@ -196,6 +197,8 @@ function InviteForm({ act, owner }: { act: Act; owner: boolean }) {
       </select>
       <button type="submit" className="btn primary">Invite</button>
     </form>
+    <p className="tiny muted" style={{ marginBottom: 16 }}>No email is sent. The person accepts the invitation in Settings after they can sign in.</p>
+    </>
   );
 }
 

@@ -17,6 +17,7 @@ Privacy is the core design rule: **personal work never leaves its owner.** It is
 - [Using TaskForce](#using-taskforce)
 - [Configuration](#configuration)
 - [Tests](#tests)
+- [Deploying](#deploying)
 - [Architecture and security model](#architecture-and-security-model)
 - [Repository layout](#repository-layout)
 - [Roadmap and pending work](#roadmap-and-pending-work)
@@ -165,6 +166,43 @@ cd web && npx tsc --noEmit && npm run lint
 
 The integration tests reset and reseed `taskforce_test`. The app-side checks run as `taskforce_app`, so RLS is exercised for real. GitHub Actions runs the same checks on every push and pull request.
 
+## Deploying
+
+Docker Compose runs PostgreSQL 17, applies migrations, and starts the API and web app. It does not load demo data and it does not enable the demo login. The API listens on `0.0.0.0` inside the container, so `TF_DEV_AUTH` is refused.
+
+```bash
+cp .env.example .env
+# Fill POSTGRES_PASSWORD, TF_APP_PASSWORD and TF_SESSION_SECRET with hex from openssl rand.
+docker compose up -d --build
+```
+
+The web app is on `http://127.0.0.1:3000` and the API on `http://127.0.0.1:8080`. Both ports are bound to localhost only.
+
+`GET /healthz` answers when the process is up. `GET /readyz` answers only when PostgreSQL accepts a connection. `GET /metrics` is Prometheus text: request counts, a latency histogram, and webhook pending/failed counts. Do not publish `/metrics` on the internet. Request logs are JSON and include the request id, user id and organization id. They do not include names, email addresses or request bodies.
+
+### HTTPS
+
+Put a reverse proxy on port 443 and forward to `127.0.0.1:3000`. Then set `TF_SECURE_COOKIES=true` and recreate the API container. Leave that variable false when you open the site over plain HTTP, or the browser will drop the session cookie.
+
+### Checklist before anyone else can reach it
+
+- `TF_DEV_AUTH` is unset.
+- `TF_SESSION_SECRET` is unique and at least 32 characters.
+- The database owner password and `TF_APP_PASSWORD` are not the local `taskforce_dev` value.
+- Postgres is not reachable from the internet. Compose does not publish port 5432.
+- `/metrics` is scraped only from the private network.
+- You have restored a backup once.
+
+### Backup and restore
+
+```bash
+docker compose exec -T db pg_dump -U taskforce taskforce > taskforce-$(date +%F).sql
+# Restore drill, into an empty database:
+# docker compose exec -T db psql -U taskforce -d taskforce < taskforce-YYYY-MM-DD.sql
+```
+
+Schedule `pg_dump` at least daily and keep the copies somewhere other than the same disk. A backup you have not restored is untested.
+
 ## Architecture and security model
 
 - **Tenancy and RLS.** Every request runs in a transaction that sets `app.user_id` (and `app.tenant_id` where relevant). Every table uses `FORCE ROW LEVEL SECURITY`. The app role cannot bypass RLS, and small `SECURITY DEFINER` helpers (`tf_tenant_visible`, `tf_is_member`, …) answer membership questions. Composite foreign keys keep child rows inside their tenant.
@@ -204,13 +242,14 @@ Done in 1.0.0:
 - Notifications and rules-based alerts
 - Audit trails and tenant settings
 - Read-only AI summaries behind policy controls
+- Backups and observability: JSON request logs, `/healthz`, `/readyz`, Prometheus `/metrics`, and a backup and restore procedure
+- Production deployment: Dockerfiles, Compose, HTTPS guidance and a hardened configuration checklist
+- Documented developer API: OpenAPI 3.1 at `/openapi.json`
 
 Still pending:
 
 - [ ] **Production sign-in (OIDC SSO).** Replace the demo login with OpenID Connect, including account linking and session revocation.
-- [ ] **Backups and observability.** Structured logs, metrics, health and readiness endpoints, plus a documented backup and restore procedure.
-- [ ] **Production deployment.** Dockerfiles or Compose, HTTPS guidance and a hardened configuration checklist.
-- [ ] **Invitation and notification emails.** Invitations are currently accepted in-app only.
+- [ ] **Invitation and notification emails.** Invitations are saved in the app and accepted in Settings. No mail is sent. The invite form says so.
 
 ### P1: extended enterprise
 
@@ -219,7 +258,6 @@ Still pending:
 - [ ] Advanced templates, custom fields and approvals
 - [ ] Interview and onboarding workflows with HR-specific permissions
 - [ ] Connected Gmail and Microsoft 365 mail (read-only) with reviewed email-to-task conversion
-- [ ] Documented developer API (OpenAPI spec)
 - [ ] Configurable workflow rules with scheduled runs (rules currently run on demand)
 - [ ] Scheduled report delivery
 

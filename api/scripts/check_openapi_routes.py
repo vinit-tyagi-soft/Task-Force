@@ -10,6 +10,8 @@ INTEGRATIONS = (ROOT / "internal/httpapi/integrations.go").read_text()
 SPEC = json.loads((ROOT / "internal/httpapi/openapi.json").read_text())
 
 UUID = r"[0-9a-fA-F-]{36}"
+# A real id, not the character-class text. The token patterns match this shape.
+SAMPLE_ID = "11111111-1111-1111-1111-111111111111"
 block = re.search(r"for _, p := range \[\]string\{(.*?)\n\s*\}", INTEGRATIONS, re.S)
 if not block:
     raise SystemExit("could not find token route allowlist in integrations.go")
@@ -34,9 +36,12 @@ if not token_patterns:
 registered = re.findall(r'mux\.Handle(?:Func)?\("([A-Z]+) ([^"]+)"', SERVER)
 actual = set()
 for method, template in registered:
-    if method not in {"GET", "POST", "PATCH"}:
-        continue  # tokenActor permits GET, and POST/PATCH only for write tokens
-    concrete = re.sub(r"\{[^}]+\}", UUID, template)
+    # The published token spec covers GET and POST. Some PATCH URLs match the
+    # allowlist, but organization updates reject tokens and the spec does not
+    # describe project or task updates yet.
+    if method not in {"GET", "POST"}:
+        continue
+    concrete = re.sub(r"\{[^}]+\}", SAMPLE_ID, template)
     if any(pattern.fullmatch(concrete) for pattern in token_patterns):
         actual.add((template, method.lower()))
 
