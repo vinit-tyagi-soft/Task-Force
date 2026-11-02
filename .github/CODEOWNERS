@@ -1,0 +1,12 @@
+# The maintainer reviews every pull request.
+# Sensitive paths are listed again so ownership stays obvious if more reviewers are added.
+
+* @vinit-tyagi-soft
+
+/api/cmd/ @vinit-tyagi-soft
+/api/migrations/ @vinit-tyagi-soft
+/api/internal/authz/ @vinit-tyagi-soft
+/api/internal/httpapi/ @vinit-tyagi-soft
+/.github/ @vinit-tyagi-soft
+/SECURITY.md @vinit-tyagi-soft
+/LICENSE @vinit-tyagi-soft

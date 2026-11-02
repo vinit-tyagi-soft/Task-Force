@@ -20,6 +20,7 @@ Privacy is the core design rule: **personal work never leaves its owner.** It is
 - [Architecture and security model](#architecture-and-security-model)
 - [Repository layout](#repository-layout)
 - [Roadmap and pending work](#roadmap-and-pending-work)
+- [Security](#security)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -231,9 +232,15 @@ Still pending:
 - [ ] Industry packs, dedicated tenant infrastructure and private AI serving
 - [ ] Extended workforce and skills features
 
+## Security
+
+Report vulnerabilities privately, as described in [SECURITY.md](SECURITY.md). Do not file a public issue for a security bug.
+
 ## Contributing
 
-Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), then pick an [open issue](https://github.com/vinit-tyagi-soft/Task-Force/issues). P0 issues are the most valuable right now. Bugs and ideas go through the issue templates.
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md), then pick an [open issue](https://github.com/vinit-tyagi-soft/Task-Force/issues). P0 issues are the most valuable right now. Questions can go in [Discussions](https://github.com/vinit-tyagi-soft/Task-Force/discussions). Bugs and ideas go through the issue templates.
+
+Changes reach `main` only through a pull request. CI has to pass, and a maintainer has to approve. New commits after approval need a new review.
 
 ## License
 

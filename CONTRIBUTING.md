@@ -25,7 +25,8 @@ Follow the [Quick start](README.md#quick-start) in the README. You need Go 1.26+
    cd web && npx tsc --noEmit && npm run lint
    ```
 
-4. Open a pull request against `main` and fill in the template. CI must pass before review.
+4. Open a pull request against `main` and fill in the template. Direct pushes to `main` are blocked.
+5. Wait for review. A maintainer must approve, and the approval is dismissed if you push again. CI must pass: API tests, web checks, and dependency review. The first pull request from a new contributor does not run workflows until a maintainer approves them.
 
 ## Project rules
 
@@ -37,7 +38,7 @@ These keep TaskForce safe for multi-tenant use. Pull requests that break them wo
 - **Check authorization in `internal/authz`.** Return 404 for resources the caller can't read and 403 for writes they may not make.
 - **Writes are audited and versioned.** Write the audit event in the same transaction, and use `If-Match` / `ETag` for updates.
 - **Test the boundaries.** Integration tests in `api/internal/httpapi` run as `taskforce_app`. Add a test showing that the wrong role or the wrong tenant is refused.
-- **No secrets in the repo.** Use environment variables.
+- **No secrets in the repo.** Use environment variables. Push protection blocks commits that contain detected secrets.
 
 ## Code style
 
@@ -47,7 +48,11 @@ These keep TaskForce safe for multi-tenant use. Pull requests that break them wo
 
 ## Security issues
 
-Please don't open public issues for vulnerabilities. Use GitHub's [private vulnerability reporting](https://github.com/vinit-tyagi-soft/Task-Force/security/advisories/new) instead.
+Please don't open public issues for vulnerabilities. Follow [SECURITY.md](SECURITY.md) and use GitHub's [private vulnerability reporting](https://github.com/vinit-tyagi-soft/Task-Force/security/advisories/new).
+
+## Code of conduct
+
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). Report unacceptable behavior privately, as that file describes.
 
 ## License
 
