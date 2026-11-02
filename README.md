@@ -140,7 +140,7 @@ Passwordless demo sign-in is for local use only. Production sign-in (OIDC) is on
 
 ### API
 
-The web app talks to the JSON API at `/api/v1`. For scripts, create a personal access token in **API & Integrations** and send it as `Authorization: Bearer tf_pat_…`. Tokens are limited to one organization, read or write scope, and task, project and report routes. Routes are registered in `api/internal/httpapi/server.go`. An OpenAPI document is on the roadmap.
+The web app talks to the JSON API at `/api/v1`. For scripts, create a personal access token in **API & Integrations** and send it as `Authorization: Bearer tf_pat_…`. Tokens are scoped to one organization. Read tokens can call the documented GET operations; write tokens add the documented POST operations. The token API covers organization details, members, departments, teams and workload, projects, tasks, boards, comments, the executive summary and task reports. Personal workspaces and private work remain excluded. The API serves its OpenAPI 3.1 document at `/openapi.json`; CI checks the documented operations against the token allowlist and registered routes.
 
 ## Configuration
 

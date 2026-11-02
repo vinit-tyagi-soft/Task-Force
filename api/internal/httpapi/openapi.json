@@ -1,0 +1,1450 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TaskForce Developer API",
+    "version": "1.0.0",
+    "description": "The API-token-accessible organization, project, task, and report routes. Tokens are scoped to one organization; personal workspace data is excluded. Use a tf_pat_ token in the Authorization header."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/v1/workspaces/{workspaceId}/projects": {
+      "get": {
+        "summary": "List projects in an organization workspace",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "getapi_v1_workspaces__workspaceId__projects",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "ARCHIVED"
+              ],
+              "default": "ACTIVE"
+            },
+            "description": "Filters the workspace project list. Defaults to ACTIVE."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a project in an organization workspace",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "postapi_v1_workspaces__workspaceId__projects",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}": {
+      "get": {
+        "summary": "Get a project",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "getapi_v1_projects__projectId",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/members": {
+      "get": {
+        "summary": "List project members",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "getapi_v1_projects__projectId__members",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/tasks": {
+      "get": {
+        "summary": "List tasks in a project",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "getapi_v1_projects__projectId__tasks",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a task in a project",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request. Repeating a request with the same Idempotency-Key returns the previously created task with HTTP 200.",
+        "operationId": "postapi_v1_projects__projectId__tasks",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Previously created task returned for a repeated Idempotency-Key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/board": {
+      "get": {
+        "summary": "Get the project board",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "getapi_v1_projects__projectId__board",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{taskId}": {
+      "get": {
+        "summary": "Get a task",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "getapi_v1_tasks__taskId",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{taskId}/comments": {
+      "get": {
+        "summary": "List task comments",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "getapi_v1_tasks__taskId__comments",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a task comment",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "postapi_v1_tasks__taskId__comments",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{orgId}": {
+      "get": {
+        "summary": "Get organization details",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "getapi_v1_organizations__orgId",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{orgId}/members": {
+      "get": {
+        "summary": "List organization members",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "getapi_v1_organizations__orgId__members",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{orgId}/departments": {
+      "get": {
+        "summary": "List organization departments",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "getapi_v1_organizations__orgId__departments",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{orgId}/teams": {
+      "get": {
+        "summary": "List organization teams",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "getapi_v1_organizations__orgId__teams",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create an organization team",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "postapi_v1_organizations__orgId__teams",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{orgId}/workload": {
+      "get": {
+        "summary": "Get organization workload",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "getapi_v1_organizations__orgId__workload",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{orgId}/executive-summary": {
+      "get": {
+        "summary": "Get the executive summary",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "getapi_v1_organizations__orgId__executive-summary",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{orgId}/reports/tasks": {
+      "get": {
+        "summary": "Get the filtered task report",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "getapi_v1_organizations__orgId__reports_tasks",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "30",
+                "7"
+              ],
+              "default": "all"
+            }
+          },
+          {
+            "name": "department_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{orgId}/reports/tasks.csv": {
+      "get": {
+        "summary": "Export task report as CSV",
+        "description": "API-token access is organization scoped. A read token can call GET operations; write scope is required for POST. Authorization and project access are checked on every request.",
+        "operationId": "getapi_v1_organizations__orgId__reports_tasks_csv",
+        "parameters": [
+          {
+            "name": "orgId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "30",
+                "7"
+              ],
+              "default": "all"
+            }
+          },
+          {
+            "name": "department_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV report download",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid path, query, or request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or revoked token"
+          },
+          "403": {
+            "description": "Token scope or organization permission does not allow this operation"
+          },
+          "404": {
+            "description": "Resource does not exist or is not visible to the caller"
+          },
+          "422": {
+            "description": "Request fields failed validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "TaskForce personal access token"
+      }
+    },
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "request_id"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "field_errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ProjectInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "start_on",
+          "due_on"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "department_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "owner_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "start_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "due_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          },
+          "state": {
+            "type": "string"
+          }
+        }
+      },
+      "TaskInput": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 180
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 3000
+          },
+          "status": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "start_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "due_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "estimate_hours": {
+            "type": "number",
+            "minimum": 0
+          },
+          "blocked_reason": {
+            "type": "string"
+          }
+        }
+      },
+      "CommentInput": {
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1500
+          }
+        }
+      },
+      "TeamInput": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "department_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "lead_user_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          },
+          "member_ids": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      }
+    }
+  }
+}

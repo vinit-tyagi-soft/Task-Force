@@ -40,6 +40,7 @@ jobs:
         run: |
           go run ./cmd/tfadmin migrate
           psql -h localhost -U postgres -d taskforce_test -c "ALTER ROLE taskforce_app LOGIN PASSWORD 'taskforce_dev'"
+      - run: python3 scripts/check_openapi_routes.py
       - run: go vet ./...
       - run: go test ./... -count=1
 
